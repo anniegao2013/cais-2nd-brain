@@ -2,6 +2,11 @@
 
 A web app for keeping track of tasks and events.
 
+Tasks live under sequential sections: before the end of spring semester,
+summer, and weeks 1–15. A few default events (Handoffs, Introductions, First
+e-board meeting, Confirm leads) are pre-filled under spring semester and can be
+moved to any other section. Everything is stored in the browser.
+
 ## Getting started
 
 ```bash

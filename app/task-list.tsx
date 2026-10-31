@@ -6,9 +6,15 @@ type Task = {
   id: string;
   text: string;
   done: boolean;
+  isDefault?: boolean;
 };
 
 type TasksByCategory = Record<string, Task[]>;
+
+type AppState = {
+  tasks: TasksByCategory;
+  removedDefaults: string[];
+};
 
 const STORAGE_KEY = "second-brain.tasks.v1";
 
@@ -21,26 +27,82 @@ const CATEGORIES = [
   })),
 ];
 
-const EMPTY: TasksByCategory = {};
-let cache: TasksByCategory | null = null;
+const DEFAULT_EVENTS: Task[] = [
+  "Handoffs",
+  "Introductions",
+  "First e-board meeting",
+  "Confirm leads",
+].map((text, index) => ({
+  id: `default-${index + 1}`,
+  text,
+  done: false,
+  isDefault: true,
+}));
+
+const DEFAULT_STATE: AppState = {
+  tasks: { spring: DEFAULT_EVENTS },
+  removedDefaults: [],
+};
+
+let cache: AppState | null = null;
 const listeners = new Set<() => void>();
 
-function readStorage(): TasksByCategory {
+function isTask(value: unknown): value is Task {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Task).id === "string" &&
+    typeof (value as Task).text === "string" &&
+    typeof (value as Task).done === "boolean"
+  );
+}
+
+function normalizeStorage(raw: string): AppState {
+  const parsed: unknown = JSON.parse(raw);
+
+  // Older saves were just a category -> tasks map.
+  const tasks: TasksByCategory =
+    parsed && typeof parsed === "object" && "tasks" in parsed
+      ? ((parsed as AppState).tasks ?? {})
+      : ((parsed as TasksByCategory) ?? {});
+  const removedDefaults =
+    parsed && typeof parsed === "object" && "removedDefaults" in parsed
+      ? ((parsed as AppState).removedDefaults ?? [])
+      : [];
+
+  const cleaned: TasksByCategory = {};
+  for (const [categoryId, list] of Object.entries(tasks)) {
+    cleaned[categoryId] = Array.isArray(list) ? list.filter(isTask) : [];
+  }
+
+  // Default events always exist unless they were deliberately removed.
+  const presentIds = new Set(
+    Object.values(cleaned).flatMap((list) => list.map((task) => task.id)),
+  );
+  for (const event of DEFAULT_EVENTS) {
+    if (removedDefaults.includes(event.id) || presentIds.has(event.id)) continue;
+    cleaned.spring = [...(cleaned.spring ?? []), { ...event }];
+  }
+
+  return { tasks: cleaned, removedDefaults };
+}
+
+function readStorage(): AppState {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as TasksByCategory) : EMPTY;
+    return stored ? normalizeStorage(stored) : DEFAULT_STATE;
   } catch {
-    return EMPTY;
+    return DEFAULT_STATE;
   }
 }
 
-function getSnapshot(): TasksByCategory {
+function getSnapshot(): AppState {
   if (cache === null) cache = readStorage();
   return cache;
 }
 
-function getServerSnapshot(): TasksByCategory {
-  return EMPTY;
+function getServerSnapshot(): AppState {
+  return DEFAULT_STATE;
 }
 
 function subscribe(listener: () => void) {
@@ -48,7 +110,7 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-function setTasks(next: TasksByCategory) {
+function setState(next: AppState) {
   cache = next;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -69,7 +131,7 @@ if (typeof window !== "undefined") {
 }
 
 export default function TaskList() {
-  const tasksByCategory = useSyncExternalStore(
+  const state = useSyncExternalStore(
     subscribe,
     getSnapshot,
     getServerSnapshot,
@@ -81,31 +143,60 @@ export default function TaskList() {
     if (!text) return;
 
     const task: Task = { id: crypto.randomUUID(), text, done: false };
-    const current = getSnapshot();
-    setTasks({
-      ...current,
-      [categoryId]: [...(current[categoryId] ?? []), task],
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: [...(state.tasks[categoryId] ?? []), task],
+      },
     });
     form.reset();
   }
 
   function toggleTask(categoryId: string, taskId: string) {
-    const current = getSnapshot();
-    setTasks({
-      ...current,
-      [categoryId]: (current[categoryId] ?? []).map((task) =>
-        task.id === taskId ? { ...task, done: !task.done } : task,
-      ),
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: (state.tasks[categoryId] ?? []).map((task) =>
+          task.id === taskId ? { ...task, done: !task.done } : task,
+        ),
+      },
     });
   }
 
   function removeTask(categoryId: string, taskId: string) {
-    const current = getSnapshot();
-    setTasks({
-      ...current,
-      [categoryId]: (current[categoryId] ?? []).filter(
-        (task) => task.id !== taskId,
-      ),
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: (state.tasks[categoryId] ?? []).filter(
+          (task) => task.id !== taskId,
+        ),
+      },
+      removedDefaults: state.removedDefaults.includes(taskId)
+        ? state.removedDefaults
+        : [...state.removedDefaults, taskId],
+    });
+  }
+
+  function moveTask(fromCategoryId: string, taskId: string, toCategoryId: string) {
+    if (fromCategoryId === toCategoryId) return;
+
+    const task = (state.tasks[fromCategoryId] ?? []).find(
+      (candidate) => candidate.id === taskId,
+    );
+    if (!task) return;
+
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [fromCategoryId]: (state.tasks[fromCategoryId] ?? []).filter(
+          (candidate) => candidate.id !== taskId,
+        ),
+        [toCategoryId]: [...(state.tasks[toCategoryId] ?? []), task],
+      },
     });
   }
 
@@ -115,12 +206,13 @@ export default function TaskList() {
         Categories
       </h1>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-        Add tasks under the part of the year they belong to.
+        Add tasks under the part of the year they belong to. Default events are
+        already listed and can be moved to another section.
       </p>
 
       <div className="mt-10 flex flex-col gap-10">
         {CATEGORIES.map((category) => {
-          const tasks = tasksByCategory[category.id] ?? [];
+          const tasks = state.tasks[category.id] ?? [];
           const remaining = tasks.filter((task) => !task.done).length;
 
           return (
@@ -162,6 +254,20 @@ export default function TaskList() {
                       >
                         {task.text}
                       </span>
+                      <select
+                        value={category.id}
+                        onChange={(event) =>
+                          moveTask(category.id, task.id, event.target.value)
+                        }
+                        aria-label={`Move "${task.text}" to another section`}
+                        className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 dark:focus:border-zinc-600"
+                      >
+                        {CATEGORIES.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
                         onClick={() => removeTask(category.id, task.id)}
