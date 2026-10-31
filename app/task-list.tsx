@@ -27,22 +27,36 @@ const CATEGORIES = [
   })),
 ];
 
-const DEFAULT_EVENTS: Task[] = [
-  "Handoffs",
-  "Introductions",
-  "First e-board meeting",
-  "Confirm leads",
-].map((text, index) => ({
-  id: `default-${index + 1}`,
-  text,
-  done: false,
-  isDefault: true,
-}));
+// Seeded tasks. Keep each id stable: stored moves and deletions reference it.
+const DEFAULT_EVENTS: Array<{ id: string; text: string; category: string }> = [
+  { id: "default-1", text: "Handoffs", category: "spring" },
+  { id: "default-2", text: "Introductions", category: "spring" },
+  { id: "default-3", text: "First e-board meeting", category: "spring" },
+  { id: "default-4", text: "Confirm leads", category: "spring" },
+  { id: "default-5", text: "Fall project sourcing", category: "summer" },
+  { id: "default-6", text: "Curriculum edits", category: "summer" },
+  { id: "default-7", text: "Recruitment prep", category: "summer" },
+  { id: "default-8", text: "Sponsorship outreach", category: "summer" },
+  { id: "default-9", text: "RSO re-recognition", category: "summer" },
+  { id: "default-10", text: "Open written apps", category: "week-1" },
+  { id: "default-11", text: "Classification", category: "week-4" },
+  { id: "default-12", text: "Retreat", category: "week-8" },
+  { id: "default-13", text: "Midsem ShowCAIS", category: "week-11" },
+  { id: "default-14", text: "OpenShowCAIS", category: "week-15" },
+];
 
-const DEFAULT_STATE: AppState = {
-  tasks: { spring: DEFAULT_EVENTS },
-  removedDefaults: [],
-};
+function buildDefaultState(): AppState {
+  const tasks: TasksByCategory = {};
+  for (const event of DEFAULT_EVENTS) {
+    tasks[event.category] = [
+      ...(tasks[event.category] ?? []),
+      { id: event.id, text: event.text, done: false, isDefault: true },
+    ];
+  }
+  return { tasks, removedDefaults: [] };
+}
+
+const DEFAULT_STATE: AppState = buildDefaultState();
 
 let cache: AppState | null = null;
 const listeners = new Set<() => void>();
@@ -81,7 +95,10 @@ function normalizeStorage(raw: string): AppState {
   );
   for (const event of DEFAULT_EVENTS) {
     if (removedDefaults.includes(event.id) || presentIds.has(event.id)) continue;
-    cleaned.spring = [...(cleaned.spring ?? []), { ...event }];
+    cleaned[event.category] = [
+      ...(cleaned[event.category] ?? []),
+      { id: event.id, text: event.text, done: false, isDefault: true },
+    ];
   }
 
   return { tasks: cleaned, removedDefaults };
