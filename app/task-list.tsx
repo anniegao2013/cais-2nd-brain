@@ -30,6 +30,7 @@ type Task = {
   tags?: TagId[];
   parentId?: string;
   leadWeeks?: number;
+  endCategoryId?: string;
   notes?: string;
 };
 
@@ -273,6 +274,85 @@ function findTask(
   return null;
 }
 
+type TaskOccurrence = {
+  task: Task;
+  startCategoryId: string;
+  isStart: boolean;
+};
+
+// A spanning task is listed under every section between its start and end.
+function taskOccurrences(
+  state: AppState,
+  categoryId: string,
+): TaskOccurrence[] {
+  const sectionIndex = categoryIndex(categoryId);
+  const occurrences: TaskOccurrence[] = [];
+
+  for (const category of CATEGORIES) {
+    const startIndex = categoryIndex(category.id);
+    for (const task of state.tasks[category.id] ?? []) {
+      const endIndex = task.endCategoryId
+        ? Math.max(startIndex, categoryIndex(task.endCategoryId))
+        : startIndex;
+      if (sectionIndex < startIndex || sectionIndex > endIndex) continue;
+
+      occurrences.push({
+        task,
+        startCategoryId: category.id,
+        isStart: sectionIndex === startIndex,
+      });
+    }
+  }
+
+  return occurrences;
+}
+
+function spanLabel(startCategoryId: string, endCategoryId: string): string {
+  if (startCategoryId.startsWith("week-") && endCategoryId.startsWith("week-")) {
+    return `Weeks ${startCategoryId.slice(5)}–${endCategoryId.slice(5)}`;
+  }
+  return `${sectionLabel(startCategoryId)} → ${sectionLabel(endCategoryId)}`;
+}
+
+function spanLength(state: AppState, task: Task): number {
+  if (!task.endCategoryId) return 0;
+  const location = findTask(state, task.id);
+  if (!location) return 0;
+  return Math.max(
+    0,
+    categoryIndex(task.endCategoryId) - categoryIndex(location.categoryId),
+  );
+}
+
+// Keep a span inside the allowed range, dropping it if it would be zero.
+function clampTaskSpan(
+  task: Task,
+  startCategoryId: string,
+  maxEndIndex = CATEGORIES.length - 1,
+): Task {
+  if (!task.endCategoryId) return task;
+
+  const startIndex = categoryIndex(startCategoryId);
+  const endIndex = categoryIndex(task.endCategoryId);
+  const max = Math.min(maxEndIndex, CATEGORIES.length - 1);
+  const clamped = Math.min(Math.max(endIndex, startIndex), max);
+
+  const next = { ...task };
+  if (clamped <= startIndex) {
+    delete next.endCategoryId;
+  } else {
+    next.endCategoryId = CATEGORIES[clamped].id;
+  }
+  return next;
+}
+
+function shiftTaskSpan(task: Task, delta: number): Task | null {
+  if (!task.endCategoryId) return task;
+  const endIndex = categoryIndex(task.endCategoryId) + delta;
+  if (endIndex < 0 || endIndex >= CATEGORIES.length) return null;
+  return { ...task, endCategoryId: CATEGORIES[endIndex].id };
+}
+
 // A sequenced task may not move before a predecessor or after a successor.
 function sequenceBounds(
   state: AppState,
@@ -299,7 +379,7 @@ function sequenceBounds(
 // Subtasks may only be scheduled in their parent's section or earlier, and a
 // parent may not move before any of its subtasks. Subtasks with a leadWeeks
 // offset shift with the parent and must stay at least that far ahead of it.
-function moveBounds(
+function baseMoveBounds(
   state: AppState,
   task: Task,
 ): { min: number; max: number } {
@@ -338,6 +418,19 @@ function moveBounds(
   return bounds;
 }
 
+// A spanning task also needs room for its remaining sections.
+function moveBounds(
+  state: AppState,
+  task: Task,
+): { min: number; max: number } {
+  const bounds = baseMoveBounds(state, task);
+  const span = spanLength(state, task);
+  if (span > 0) {
+    bounds.max = Math.min(bounds.max, CATEGORIES.length - 1 - span);
+  }
+  return bounds;
+}
+
 // Keep subtasks from ending up after their parent if old data is inconsistent.
 function sanitizeSubtaskPlacement(state: AppState): AppState {
   const location = new Map<string, string>();
@@ -354,10 +447,12 @@ function sanitizeSubtaskPlacement(state: AppState): AppState {
         : undefined;
 
       if (!task.parentId) {
-        tasks[categoryId].push(task);
+        tasks[categoryId].push(clampTaskSpan(task, categoryId));
       } else if (!parentCategory) {
         // Parent is gone; keep the task as a standalone item.
-        tasks[categoryId].push({ ...task, parentId: undefined });
+        tasks[categoryId].push(
+          clampTaskSpan({ ...task, parentId: undefined }, categoryId),
+        );
       } else {
         const latestIndex =
           categoryIndex(parentCategory) - (task.leadWeeks ?? 0);
@@ -366,11 +461,16 @@ function sanitizeSubtaskPlacement(state: AppState): AppState {
           Math.max(latestIndex, 0),
         );
         const targetCategory = CATEGORIES[targetIndex].id;
+        const nextTask = clampTaskSpan(
+          task,
+          targetCategory,
+          Math.max(latestIndex, 0),
+        );
 
         if (targetCategory === categoryId) {
-          tasks[categoryId].push(task);
+          tasks[categoryId].push(nextTask);
         } else {
-          tasks[targetCategory] = [...tasks[targetCategory], task];
+          tasks[targetCategory] = [...tasks[targetCategory], nextTask];
         }
       }
     }
@@ -656,7 +756,7 @@ export default function TaskList() {
   const [subtaskCategoryId, setSubtaskCategoryId] = useState("");
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
   const [activeTags, setActiveTags] = useState<TagId[]>([]);
@@ -698,8 +798,10 @@ export default function TaskList() {
 
     const afterId = String(data.get("after") ?? "");
     const beforeId = String(data.get("before") ?? "");
+    const endId = String(data.get("end") ?? "") || categoryId;
     const targetIndex = categoryIndex(categoryId);
     const targetLabel = sectionLabel(categoryId);
+    const endIndex = categoryIndex(endId);
 
     if (afterId && beforeId && afterId === beforeId) {
       setAddError({
@@ -760,7 +862,29 @@ export default function TaskList() {
       return;
     }
 
+    if (endIndex < targetIndex) {
+      setAddError({
+        categoryId,
+        message: "The span must end at or after its starting section.",
+      });
+      return;
+    }
+
+    if (
+      beforeLocation &&
+      endIndex > categoryIndex(beforeLocation.categoryId)
+    ) {
+      setAddError({
+        categoryId,
+        message: `The span must end at or before “${beforeLocation.task.text}”.`,
+      });
+      return;
+    }
+
     const task: Task = { id: crypto.randomUUID(), text, done: false };
+    if (endIndex > targetIndex) {
+      task.endCategoryId = CATEGORIES[endIndex].id;
+    }
     const nextDependencies = [...state.dependencies];
     if (afterLocation) {
       nextDependencies.push({ before: afterLocation.task.id, after: task.id });
@@ -852,7 +976,10 @@ export default function TaskList() {
       Math.min(categoryIndex(categoryId), latestIndex),
     );
     const targetCategory = CATEGORIES[targetIndex].id;
-    tasks[targetCategory] = [...(tasks[targetCategory] ?? []), nextTask];
+    tasks[targetCategory] = [
+      ...(tasks[targetCategory] ?? []),
+      clampTaskSpan(nextTask, targetCategory, Math.max(latestIndex, 0)),
+    ];
 
     setState(sortState({ ...state, tasks }));
   }
@@ -888,11 +1015,18 @@ export default function TaskList() {
     const nextDependencies = [...state.dependencies];
 
     if (afterLocation) {
-      if (categoryIndex(afterLocation.categoryId) > taskIndex) {
+      const afterEndIndex = afterLocation.task.endCategoryId
+        ? categoryIndex(afterLocation.task.endCategoryId)
+        : categoryIndex(afterLocation.categoryId);
+      if (afterEndIndex > taskIndex) {
         setDepError(
-          `“${afterLocation.task.text}” is in ${sectionLabel(
-            afterLocation.categoryId,
-          )}, which is after ${sectionLabel(taskLocation.categoryId)}.`,
+          afterLocation.task.endCategoryId
+            ? `“${afterLocation.task.text}” runs through ${sectionLabel(
+                afterLocation.task.endCategoryId,
+              )}, which is after ${sectionLabel(taskLocation.categoryId)}.`
+            : `“${afterLocation.task.text}” is in ${sectionLabel(
+                afterLocation.categoryId,
+              )}, which is after ${sectionLabel(taskLocation.categoryId)}.`,
         );
         return;
       }
@@ -912,11 +1046,18 @@ export default function TaskList() {
     }
 
     if (beforeLocation) {
-      if (categoryIndex(beforeLocation.categoryId) < taskIndex) {
+      const taskEndIndex = taskLocation.task.endCategoryId
+        ? categoryIndex(taskLocation.task.endCategoryId)
+        : taskIndex;
+      if (taskEndIndex > categoryIndex(beforeLocation.categoryId)) {
         setDepError(
-          `“${beforeLocation.task.text}” is in ${sectionLabel(
-            beforeLocation.categoryId,
-          )}, which is before ${sectionLabel(taskLocation.categoryId)}.`,
+          taskLocation.task.endCategoryId
+            ? `“${taskLocation.task.text}” runs through ${sectionLabel(
+                taskLocation.task.endCategoryId,
+              )}, which is after “${beforeLocation.task.text}”.`
+            : `“${beforeLocation.task.text}” is in ${sectionLabel(
+                beforeLocation.categoryId,
+              )}, which is before ${sectionLabel(taskLocation.categoryId)}.`,
         );
         return;
       }
@@ -991,6 +1132,38 @@ export default function TaskList() {
     setTitleError(null);
   }
 
+  function setTaskSpan(
+    categoryId: string,
+    taskId: string,
+    endCategoryId: string,
+  ) {
+    const task = (state.tasks[categoryId] ?? []).find(
+      (candidate) => candidate.id === taskId,
+    );
+    if (!task) return;
+
+    const startIndex = categoryIndex(categoryId);
+    const endIndex = categoryIndex(endCategoryId);
+    const maxEndIndex = baseMoveBounds(state, task).max;
+    if (endIndex < startIndex || endIndex > maxEndIndex) return;
+
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: (state.tasks[categoryId] ?? []).map((candidate) => {
+          if (candidate.id !== taskId) return candidate;
+          if (endIndex === startIndex) {
+            const next = { ...candidate };
+            delete next.endCategoryId;
+            return next;
+          }
+          return { ...candidate, endCategoryId: CATEGORIES[endIndex].id };
+        }),
+      },
+    });
+  }
+
   function toggleTag(categoryId: string, taskId: string, tagId: TagId) {
     setState({
       ...state,
@@ -1010,16 +1183,17 @@ export default function TaskList() {
     });
   }
 
-  function startEditingNotes(task: Task) {
-    setExpandedTaskId(task.id);
+  function startEditingNotes(task: Task, occurrenceCategoryId: string) {
+    setExpandedRowKey(`${task.id}:${occurrenceCategoryId}`);
     setNotesTaskId(task.id);
     setNotesDraft(task.notes ?? "");
     setSubtaskParentId(null);
   }
 
-  function toggleExpanded(taskId: string) {
-    const opening = expandedTaskId !== taskId;
-    setExpandedTaskId(opening ? taskId : null);
+  function toggleExpanded(taskId: string, occurrenceCategoryId: string) {
+    const rowKey = `${taskId}:${occurrenceCategoryId}`;
+    const opening = expandedRowKey !== rowKey;
+    setExpandedRowKey(opening ? rowKey : null);
     setNotesTaskId(null);
     setNotesDraft("");
     setDepAfterId("");
@@ -1040,7 +1214,11 @@ export default function TaskList() {
     ) {
       setActiveTags([]);
     }
-    setExpandedTaskId(parentId);
+    setExpandedRowKey(
+      parentLocation
+        ? `${parentId}:${parentLocation.categoryId}`
+        : null,
+    );
     setNotesTaskId(null);
     setNotesDraft("");
     setSubtaskParentId(null);
@@ -1049,9 +1227,13 @@ export default function TaskList() {
     setDepError(null);
     setTitleDraft(parentLocation?.task.text ?? "");
     setTitleError(null);
+    const targetId = parentLocation
+      ? `task-${parentId}-${parentLocation.categoryId}`
+      : null;
     requestAnimationFrame(() => {
+      if (!targetId) return;
       document
-        .getElementById(`task-${parentId}`)
+        .getElementById(targetId)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
@@ -1123,8 +1305,11 @@ export default function TaskList() {
     });
     if (subtaskParentId === taskId) setSubtaskParentId(null);
     if (notesTaskId && removedIds.has(notesTaskId)) setNotesTaskId(null);
-    if (expandedTaskId && removedIds.has(expandedTaskId)) {
-      setExpandedTaskId(null);
+    if (
+      expandedRowKey &&
+      [...removedIds].some((id) => expandedRowKey.startsWith(`${id}:`))
+    ) {
+      setExpandedRowKey(null);
     }
   }
 
@@ -1142,7 +1327,10 @@ export default function TaskList() {
 
     // Lead-time subtasks shift along with their parent to keep their gap.
     const delta = targetIndex - categoryIndex(fromCategoryId);
-    const shifted = new Map<string, string>();
+    const movedTask = shiftTaskSpan(task, delta);
+    if (!movedTask) return;
+
+    const shifted = new Map<string, { categoryId: string; task: Task }>();
     if (!task.parentId) {
       for (const [categoryId, list] of Object.entries(state.tasks)) {
         for (const candidate of list) {
@@ -1154,31 +1342,27 @@ export default function TaskList() {
           }
           const newIndex = categoryIndex(categoryId) + delta;
           if (newIndex < 0 || newIndex >= CATEGORIES.length) return;
-          shifted.set(candidate.id, CATEGORIES[newIndex].id);
+          const shiftedTask = shiftTaskSpan(candidate, delta);
+          if (!shiftedTask) return;
+          shifted.set(candidate.id, {
+            categoryId: CATEGORIES[newIndex].id,
+            task: shiftedTask,
+          });
         }
       }
     }
 
     const movingIds = new Set<string>([taskId, ...shifted.keys()]);
     const tasks: TasksByCategory = {};
-    const movedSubtasks = new Map<string, Task>();
     for (const [categoryId, list] of Object.entries(state.tasks)) {
-      tasks[categoryId] = [];
-      for (const candidate of list) {
-        if (movingIds.has(candidate.id)) {
-          movedSubtasks.set(candidate.id, candidate);
-        } else {
-          tasks[categoryId].push(candidate);
-        }
-      }
+      tasks[categoryId] = list.filter(
+        (candidate) => !movingIds.has(candidate.id),
+      );
     }
 
-    tasks[toCategoryId] = [...(tasks[toCategoryId] ?? []), task];
-    for (const [subtaskId, categoryId] of shifted) {
-      const subtask = movedSubtasks.get(subtaskId);
-      if (subtask) {
-        tasks[categoryId] = [...(tasks[categoryId] ?? []), subtask];
-      }
+    tasks[toCategoryId] = [...(tasks[toCategoryId] ?? []), movedTask];
+    for (const { categoryId, task: subtask } of shifted.values()) {
+      tasks[categoryId] = [...(tasks[categoryId] ?? []), subtask];
     }
 
     setState(sortState({ ...state, tasks }));
@@ -1195,12 +1379,14 @@ export default function TaskList() {
       </h1>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         Add tasks under the part of the year they belong to. Default events are
-        already listed and can be moved to another section. Use + to add a
-        subtask in the same or an earlier section; open a subtask to edit its
-        lead time. Click a task to expand it, where you can change its title,
-        description, tags, and ordering rules. Ordering can also be set when
-        adding an event. Use the filter bar to show only tasks with selected
-        tags.
+        already listed and can be moved to another section. Tasks can also span
+        several weeks: pick an end section when adding one, or change it after
+        expanding the task, and the task will be listed under every week it
+        covers. Use + to add a subtask in the same or an earlier section; open
+        a subtask to edit its lead time. Click a task to expand it, where you
+        can change its title, description, tags, span, and ordering rules.
+        Ordering can also be set when adding an event. Use the filter bar to
+        show only tasks with selected tags.
       </p>
 
       <div
@@ -1251,9 +1437,13 @@ export default function TaskList() {
 
       <div className="mt-10 flex flex-col gap-10">
         {CATEGORIES.map((category) => {
-          const tasks = (state.tasks[category.id] ?? []).filter(matchesFilter);
-          if (activeTags.length > 0 && tasks.length === 0) return null;
-          const remaining = tasks.filter((task) => !task.done).length;
+          const occurrences = taskOccurrences(state, category.id).filter(
+            ({ task }) => matchesFilter(task),
+          );
+          if (activeTags.length > 0 && occurrences.length === 0) return null;
+          const remaining = occurrences.filter(
+            ({ task }) => !task.done,
+          ).length;
 
           return (
             <section key={category.id} aria-labelledby={`${category.id}-heading`}>
@@ -1269,9 +1459,9 @@ export default function TaskList() {
                 </span>
               </div>
 
-              {tasks.length > 0 && (
+              {occurrences.length > 0 && (
                 <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-                  {tasks.map((task) => {
+                  {occurrences.map(({ task, startCategoryId, isStart }) => {
                     const parentLocation = task.parentId
                       ? findTask(state, task.parentId)
                       : null;
@@ -1280,10 +1470,15 @@ export default function TaskList() {
                       ? categoryIndex(parentLocation.categoryId)
                       : 0;
                     const isSubtask = Boolean(task.parentId);
-                    const formOpen = subtaskParentId === task.id;
+                    const rowKey = `${task.id}:${category.id}`;
+                    const formOpen = isStart && subtaskParentId === task.id;
                     const notesOpen = notesTaskId === task.id;
-                    const expanded = expandedTaskId === task.id;
+                    const expanded = expandedRowKey === rowKey;
                     const bounds = moveBounds(state, task);
+                    const spanMaxIndex = Math.max(
+                      categoryIndex(startCategoryId),
+                      baseMoveBounds(state, task).max,
+                    );
                     const incomingEdges = state.dependencies.filter(
                       (edge) => edge.after === task.id,
                     );
@@ -1301,15 +1496,15 @@ export default function TaskList() {
 
                     return (
                       <li
-                        key={task.id}
-                        id={`task-${task.id}`}
+                        key={rowKey}
+                        id={`task-${task.id}-${category.id}`}
                         className={`py-2.5 ${isSubtask ? "pl-6" : ""}`}
                       >
                         <div className="group flex items-center gap-3">
                           <input
                             type="checkbox"
                             checked={task.done}
-                            onChange={() => toggleTask(category.id, task.id)}
+                            onChange={() => toggleTask(startCategoryId, task.id)}
                             aria-label={`Mark "${task.text}" as ${
                               task.done ? "not done" : "done"
                             }`}
@@ -1317,9 +1512,9 @@ export default function TaskList() {
                           />
                           <button
                             type="button"
-                            onClick={() => toggleExpanded(task.id)}
+                            onClick={() => toggleExpanded(task.id, category.id)}
                             aria-expanded={expanded}
-                            aria-controls={`details-${task.id}`}
+                            aria-controls={`details-${task.id}-${category.id}`}
                             className={`flex flex-1 items-center gap-1.5 text-left text-sm ${
                               task.done
                                 ? "text-zinc-400 line-through dark:text-zinc-500"
@@ -1334,7 +1529,7 @@ export default function TaskList() {
                               {expanded ? "▾" : "▸"}
                             </span>
                           </button>
-                          {!isSubtask && (
+                          {isStart && !isSubtask && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1344,7 +1539,7 @@ export default function TaskList() {
                                 }
                                 setSubtaskParentId(task.id);
                                 setSubtaskText("");
-                                setSubtaskCategoryId(category.id);
+                                setSubtaskCategoryId(startCategoryId);
                                 setNotesTaskId(null);
                               }}
                               aria-label={`Add a subtask to "${task.text}"`}
@@ -1354,39 +1549,59 @@ export default function TaskList() {
                               +
                             </button>
                           )}
-                          <select
-                            value={category.id}
-                            onChange={(event) =>
-                              moveTask(category.id, task.id, event.target.value)
-                            }
-                            aria-label={`Move "${task.text}" to another section`}
-                            className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 dark:focus:border-zinc-600"
-                          >
-                            {CATEGORIES.map((option, optionIndex) => (
-                              <option
-                                key={option.id}
-                                value={option.id}
-                                disabled={
-                                  optionIndex < bounds.min ||
-                                  optionIndex > bounds.max
-                                }
-                              >
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => removeTask(category.id, task.id)}
-                            aria-label={`Delete "${task.text}"`}
-                            className="text-sm text-zinc-400 opacity-0 transition-opacity hover:text-zinc-900 focus:opacity-100 group-hover:opacity-100 dark:text-zinc-500 dark:hover:text-zinc-100"
-                          >
-                            ×
-                          </button>
+                          {isStart && (
+                            <select
+                              value={startCategoryId}
+                              onChange={(event) =>
+                                moveTask(
+                                  startCategoryId,
+                                  task.id,
+                                  event.target.value,
+                                )
+                              }
+                              aria-label={`Move "${task.text}" to another section`}
+                              className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 dark:focus:border-zinc-600"
+                            >
+                              {CATEGORIES.map((option, optionIndex) => (
+                                <option
+                                  key={option.id}
+                                  value={option.id}
+                                  disabled={
+                                    optionIndex < bounds.min ||
+                                    optionIndex > bounds.max
+                                  }
+                                >
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {isStart && (
+                            <button
+                              type="button"
+                              onClick={() => removeTask(startCategoryId, task.id)}
+                              aria-label={`Delete "${task.text}"`}
+                              className="text-sm text-zinc-400 opacity-0 transition-opacity hover:text-zinc-900 focus:opacity-100 group-hover:opacity-100 dark:text-zinc-500 dark:hover:text-zinc-100"
+                            >
+                              ×
+                            </button>
+                          )}
                         </div>
 
-                        {(task.tags?.length ?? 0) > 0 && (
+                        {((task.tags?.length ?? 0) > 0 ||
+                          task.endCategoryId) && (
                           <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
+                            {task.endCategoryId && (
+                              <span
+                                aria-label={`Spans ${spanLabel(
+                                  startCategoryId,
+                                  task.endCategoryId,
+                                )}`}
+                                className="rounded-full border border-zinc-300 bg-white px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200"
+                              >
+                                ↔ {spanLabel(startCategoryId, task.endCategoryId)}
+                              </span>
+                            )}
                             {task.tags?.map((tagId) => (
                               <span
                                 key={tagId}
@@ -1435,7 +1650,10 @@ export default function TaskList() {
                         )}
 
                         {expanded && (
-                          <div id={`details-${task.id}`} className="mt-2 pl-7">
+                          <div
+                            id={`details-${task.id}-${category.id}`}
+                            className="mt-2 pl-7"
+                          >
                             {parent && (
                               <button
                                 type="button"
@@ -1449,7 +1667,7 @@ export default function TaskList() {
                               <form
                                 onSubmit={(event) => {
                                   event.preventDefault();
-                                  renameTask(category.id, task.id, titleDraft);
+                                  renameTask(startCategoryId, task.id, titleDraft);
                                 }}
                               >
                                 <label
@@ -1497,7 +1715,7 @@ export default function TaskList() {
                                       key={tag.id}
                                       type="button"
                                       onClick={() =>
-                                        toggleTag(category.id, task.id, tag.id)
+                                        toggleTag(startCategoryId, task.id, tag.id)
                                       }
                                       aria-pressed={active}
                                       aria-label={`${
@@ -1516,6 +1734,43 @@ export default function TaskList() {
                                   );
                                 })}
                               </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                                  Span
+                                </span>
+                                <span>Starts in {sectionLabel(startCategoryId)}, runs through</span>
+                                <select
+                                  id={`span-${task.id}`}
+                                  value={task.endCategoryId ?? startCategoryId}
+                                  onChange={(event) =>
+                                    setTaskSpan(
+                                      startCategoryId,
+                                      task.id,
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="h-7 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                                >
+                                  {CATEGORIES.slice(
+                                    categoryIndex(startCategoryId),
+                                    spanMaxIndex + 1,
+                                  ).map((option, offset) => (
+                                    <option key={option.id} value={option.id}>
+                                      {offset === 0
+                                        ? "Same section only"
+                                        : option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                                {task.endCategoryId
+                                  ? `Runs across ${spanLabel(
+                                      startCategoryId,
+                                      task.endCategoryId,
+                                    )}.`
+                                  : "Choose a later section to make this task span multiple weeks."}
+                              </p>
                             </div>
                             {task.parentId && parent && (
                               <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
@@ -1537,7 +1792,7 @@ export default function TaskList() {
                                       value={task.leadWeeks ?? 0}
                                       onChange={(event) =>
                                         updateSubtaskLead(
-                                          category.id,
+                                          startCategoryId,
                                           task.id,
                                           Number(event.target.value),
                                         )
@@ -1693,7 +1948,7 @@ export default function TaskList() {
                               <form
                                 onSubmit={(event) => {
                                   event.preventDefault();
-                                  saveNotes(category.id, task.id);
+                                  saveNotes(startCategoryId, task.id);
                                 }}
                               >
                                 <label
@@ -1796,7 +2051,7 @@ export default function TaskList() {
                                 )}
                                 <button
                                   type="button"
-                                  onClick={() => startEditingNotes(task)}
+                                  onClick={() => startEditingNotes(task, category.id)}
                                   className="mt-2 text-xs font-medium text-zinc-500 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"
                                 >
                                   {task.notes ? "Edit description" : "Add description"}
@@ -1837,7 +2092,7 @@ export default function TaskList() {
                                   key={option.id}
                                   value={option.id}
                                   disabled={
-                                    optionIndex > categoryIndex(category.id)
+                                    optionIndex > categoryIndex(startCategoryId)
                                   }
                                 >
                                   {option.label}
@@ -1915,6 +2170,23 @@ export default function TaskList() {
                       >
                         <option value="">Any</option>
                         {taskOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <span>spanning through</span>
+                      <select
+                        name="end"
+                        defaultValue=""
+                        className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                      >
+                        <option value="">This section only</option>
+                        {CATEGORIES.slice(
+                          categoryIndex(category.id) + 1,
+                        ).map((option) => (
                           <option key={option.id} value={option.id}>
                             {option.label}
                           </option>
