@@ -7,6 +7,7 @@ type Task = {
   text: string;
   done: boolean;
   isDefault?: boolean;
+  recruitment?: boolean;
 };
 
 type TasksByCategory = Record<string, Task[]>;
@@ -43,6 +44,11 @@ const DEFAULT_EVENTS: Array<{ id: string; text: string; category: string }> = [
   { id: "default-12", text: "Retreat", category: "week-8" },
   { id: "default-13", text: "Midsem ShowCAIS", category: "week-11" },
   { id: "default-14", text: "OpenShowCAIS", category: "week-15" },
+  { id: "default-15", text: "Written delibs", category: "week-3" },
+  { id: "default-16", text: "Group interviews", category: "week-3" },
+  { id: "default-17", text: "Individual interviews", category: "week-4" },
+  { id: "default-18", text: "Big little reveal", category: "week-10" },
+  { id: "default-19", text: "Spring project sourcing", category: "week-7" },
 ];
 
 function buildDefaultState(): AppState {
