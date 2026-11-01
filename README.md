@@ -5,13 +5,14 @@ A web app for keeping track of tasks and events.
 Tasks live under sequential sections: before the end of spring semester,
 summer, and weeks 1–15. A set of default tasks is pre-filled and can be moved
 to another section or deleted. Tasks can have subtasks with editable lead times,
-plus descriptions that expand on click and render as nested bullet points. Some
-tasks have ordering rules that are enforced automatically when moving them.
-Everything is stored in the browser.
+plus descriptions that expand on click and render as nested bullet points.
+Ordering rules are visible under each task and can be edited in the expanded
+panel; new tasks can optionally be placed between two existing tasks. Everything
+is stored in the browser.
 
-Default tasks are defined in the `DEFAULT_EVENTS` list in
+Default tasks and their starter ordering rules are defined in
 `app/task-list.tsx`; keep each entry's `id` stable since it is used to remember
-moves and deletions.
+moves, deletions, and dependencies.
 
 ## Getting started
 

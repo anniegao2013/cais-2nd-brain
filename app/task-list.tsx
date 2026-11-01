@@ -15,9 +15,13 @@ type Task = {
 
 type TasksByCategory = Record<string, Task[]>;
 
+// An edge means `before` must happen earlier than `after`.
+type Dependency = { before: string; after: string };
+
 type AppState = {
   tasks: TasksByCategory;
   removedDefaults: string[];
+  dependencies: Dependency[];
 };
 
 const STORAGE_KEY = "second-brain.tasks.v1";
@@ -106,7 +110,8 @@ const DEFAULT_EVENTS: Array<{
   },
 ];
 
-// Recruitment tasks must stay in this relative order when moved.
+// Recruitment tasks start out ordered. These edges (and any others) can be
+// removed or added from the task details panel and are stored with the state.
 const RECRUITMENT_CHAIN = [
   "default-7",
   "default-10",
@@ -116,29 +121,42 @@ const RECRUITMENT_CHAIN = [
   "default-11",
 ];
 
-// Additional ordering rules: `task` must happen after `after`.
-const DEPENDENCIES = [
-  { task: "default-18", after: "default-12" }, // Big little reveal after Retreat
+const DEFAULT_DEPENDENCIES: Dependency[] = [
+  ...RECRUITMENT_CHAIN.slice(1).map((id, index) => ({
+    before: RECRUITMENT_CHAIN[index],
+    after: id,
+  })),
+  // Big little reveal happens after Retreat.
+  { before: "default-12", after: "default-18" },
 ];
 
 const DEFAULT_BY_ID = new Map(DEFAULT_EVENTS.map((event) => [event.id, event]));
 
-const PRECEDENCE_EDGES: Array<[string, string]> = [
-  ...RECRUITMENT_CHAIN.slice(1).map(
-    (id, index) => [RECRUITMENT_CHAIN[index], id] as [string, string],
-  ),
-  ...DEPENDENCIES.map(({ after, task }) => [after, task] as [string, string]),
-];
+type Graph = {
+  // PRECEDES: id -> tasks that must come after it.
+  precedes: Map<string, string[]>;
+  // FOLLOWS: id -> tasks that must come before it.
+  follows: Map<string, string[]>;
+  sequenced: Set<string>;
+};
 
-// PRECEDES: id -> tasks that must come after it. FOLLOWS: id -> tasks before it.
-const PRECEDES = new Map<string, string[]>();
-const FOLLOWS = new Map<string, string[]>();
-for (const [before, after] of PRECEDENCE_EDGES) {
-  PRECEDES.set(before, [...(PRECEDES.get(before) ?? []), after]);
-  FOLLOWS.set(after, [...(FOLLOWS.get(after) ?? []), before]);
+function buildGraph(dependencies: Dependency[]): Graph {
+  const precedes = new Map<string, string[]>();
+  const follows = new Map<string, string[]>();
+  const sequenced = new Set<string>();
+
+  for (const { before, after } of dependencies) {
+    if (!before || !after || before === after) continue;
+    const targets = precedes.get(before) ?? [];
+    if (targets.includes(after)) continue;
+    precedes.set(before, [...targets, after]);
+    follows.set(after, [...(follows.get(after) ?? []), before]);
+    sequenced.add(before);
+    sequenced.add(after);
+  }
+
+  return { precedes, follows, sequenced };
 }
-
-const SEQUENCED_IDS = new Set(PRECEDENCE_EDGES.flat());
 
 function traverse(startId: string, edges: Map<string, string[]>): Set<string> {
   const seen = new Set<string>();
@@ -153,11 +171,11 @@ function traverse(startId: string, edges: Map<string, string[]>): Set<string> {
 }
 
 // Sort only tasks that have ordering rules, leaving other tasks in their slots.
-function sortSequenced(tasks: Task[]): Task[] {
+function sortSequenced(tasks: Task[], graph: Graph): Task[] {
   const positions: number[] = [];
   const nodes: Task[] = [];
   tasks.forEach((task, index) => {
-    if (SEQUENCED_IDS.has(task.id)) {
+    if (graph.sequenced.has(task.id)) {
       positions.push(index);
       nodes.push(task);
     }
@@ -168,13 +186,16 @@ function sortSequenced(tasks: Task[]): Task[] {
   const indegree = new Map(nodes.map((node) => [node.id, 0]));
   const outgoing = new Map<string, Set<string>>();
 
-  for (const [before, after] of PRECEDENCE_EDGES) {
-    if (!nodeIds.has(before) || !nodeIds.has(after)) continue;
-    const targets = outgoing.get(before) ?? new Set<string>();
-    if (targets.has(after)) continue;
-    targets.add(after);
-    outgoing.set(before, targets);
-    indegree.set(after, (indegree.get(after) ?? 0) + 1);
+  for (const [before, targets] of graph.precedes) {
+    if (!nodeIds.has(before)) continue;
+    for (const after of targets) {
+      if (!nodeIds.has(after) || before === after) continue;
+      const edges = outgoing.get(before) ?? new Set<string>();
+      if (edges.has(after)) continue;
+      edges.add(after);
+      outgoing.set(before, edges);
+      indegree.set(after, (indegree.get(after) ?? 0) + 1);
+    }
   }
 
   const ordered: Task[] = [];
@@ -202,15 +223,23 @@ function sortSequenced(tasks: Task[]): Task[] {
 }
 
 function sortState(state: AppState): AppState {
+  const graph = buildGraph(state.dependencies);
   const tasks: TasksByCategory = {};
   for (const [categoryId, list] of Object.entries(state.tasks)) {
-    tasks[categoryId] = sortSequenced(list);
+    tasks[categoryId] = sortSequenced(list, graph);
   }
   return { ...state, tasks };
 }
 
 function categoryIndex(categoryId: string): number {
   return CATEGORIES.findIndex((category) => category.id === categoryId);
+}
+
+function sectionLabel(categoryId: string): string {
+  return (
+    CATEGORIES.find((category) => category.id === categoryId)?.label ??
+    categoryId
+  );
 }
 
 function findTask(
@@ -229,17 +258,18 @@ function sequenceBounds(
   state: AppState,
   taskId: string,
 ): { min: number; max: number } {
-  if (!SEQUENCED_IDS.has(taskId)) {
+  const graph = buildGraph(state.dependencies);
+  if (!graph.sequenced.has(taskId)) {
     return { min: 0, max: CATEGORIES.length - 1 };
   }
 
   let min = 0;
   let max = CATEGORIES.length - 1;
-  for (const id of traverse(taskId, FOLLOWS)) {
+  for (const id of traverse(taskId, graph.follows)) {
     const location = findTask(state, id);
     if (location) min = Math.max(min, categoryIndex(location.categoryId));
   }
-  for (const id of traverse(taskId, PRECEDES)) {
+  for (const id of traverse(taskId, graph.precedes)) {
     const location = findTask(state, id);
     if (location) max = Math.min(max, categoryIndex(location.categoryId));
   }
@@ -409,7 +439,11 @@ function buildDefaultState(): AppState {
       },
     ];
   }
-  return sortState({ tasks, removedDefaults: [] });
+  return sortState({
+    tasks,
+    removedDefaults: [],
+    dependencies: DEFAULT_DEPENDENCIES,
+  });
 }
 
 const DEFAULT_STATE: AppState = buildDefaultState();
@@ -427,6 +461,39 @@ function isTask(value: unknown): value is Task {
   );
 }
 
+function isDependency(value: unknown): value is Dependency {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Dependency).before === "string" &&
+    typeof (value as Dependency).after === "string"
+  );
+}
+
+// Drop edges for tasks that no longer exist, plus duplicates and self-links.
+function pruneDependencies(
+  dependencies: Dependency[],
+  tasks: TasksByCategory,
+): Dependency[] {
+  const present = new Set<string>();
+  for (const list of Object.values(tasks)) {
+    for (const task of list) present.add(task.id);
+  }
+
+  const kept: Dependency[] = [];
+  const seen = new Set<string>();
+  for (const edge of dependencies) {
+    if (!isDependency(edge)) continue;
+    if (!present.has(edge.before) || !present.has(edge.after)) continue;
+    if (edge.before === edge.after) continue;
+    const key = `${edge.before}->${edge.after}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push({ before: edge.before, after: edge.after });
+  }
+  return kept;
+}
+
 function normalizeStorage(raw: string): AppState {
   const parsed: unknown = JSON.parse(raw);
 
@@ -439,6 +506,15 @@ function normalizeStorage(raw: string): AppState {
     parsed && typeof parsed === "object" && "removedDefaults" in parsed
       ? ((parsed as AppState).removedDefaults ?? [])
       : [];
+  // Older saves have no dependencies; seed the defaults for them. An empty
+  // stored array is respected so removed rules stay removed.
+  const storedDependencies =
+    parsed && typeof parsed === "object" && "dependencies" in parsed
+      ? (parsed as AppState).dependencies
+      : undefined;
+  const dependencies = Array.isArray(storedDependencies)
+    ? storedDependencies.filter(isDependency)
+    : DEFAULT_DEPENDENCIES;
 
   const cleaned: TasksByCategory = {};
   for (const [categoryId, list] of Object.entries(tasks)) {
@@ -486,7 +562,11 @@ function normalizeStorage(raw: string): AppState {
     presentIds.add(event.id);
   }
 
-  return sanitizeSubtaskPlacement({ tasks: cleaned, removedDefaults });
+  return sanitizeSubtaskPlacement({
+    tasks: cleaned,
+    removedDefaults,
+    dependencies: pruneDependencies(dependencies, cleaned),
+  });
 }
 
 function readStorage(): AppState {
@@ -544,20 +624,111 @@ export default function TaskList() {
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [depAfterId, setDepAfterId] = useState("");
+  const [depBeforeId, setDepBeforeId] = useState("");
+  const [depError, setDepError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<{
+    categoryId: string;
+    message: string;
+  } | null>(null);
+
+  const taskOptions = CATEGORIES.flatMap((category) =>
+    (state.tasks[category.id] ?? []).map((task) => ({
+      id: task.id,
+      text: task.text,
+      label: `${task.text} · ${category.label}`,
+    })),
+  );
 
   function addTask(categoryId: string, form: HTMLFormElement) {
     const data = new FormData(form);
     const text = String(data.get("text") ?? "").trim();
     if (!text) return;
 
+    const afterId = String(data.get("after") ?? "");
+    const beforeId = String(data.get("before") ?? "");
+    const targetIndex = categoryIndex(categoryId);
+    const targetLabel = sectionLabel(categoryId);
+
+    if (afterId && beforeId && afterId === beforeId) {
+      setAddError({
+        categoryId,
+        message: "Choose two different tasks for the range.",
+      });
+      return;
+    }
+
+    const afterLocation = afterId ? findTask(state, afterId) : null;
+    const beforeLocation = beforeId ? findTask(state, beforeId) : null;
+
+    if (
+      (afterId && !afterLocation) ||
+      (beforeId && !beforeLocation)
+    ) {
+      setAddError({ categoryId, message: "That task no longer exists." });
+      return;
+    }
+
+    if (
+      afterLocation &&
+      categoryIndex(afterLocation.categoryId) > targetIndex
+    ) {
+      setAddError({
+        categoryId,
+        message: `“${afterLocation.task.text}” is in ${sectionLabel(
+          afterLocation.categoryId,
+        )}, which is after ${targetLabel}.`,
+      });
+      return;
+    }
+
+    if (
+      beforeLocation &&
+      categoryIndex(beforeLocation.categoryId) < targetIndex
+    ) {
+      setAddError({
+        categoryId,
+        message: `“${beforeLocation.task.text}” is in ${sectionLabel(
+          beforeLocation.categoryId,
+        )}, which is before ${targetLabel}.`,
+      });
+      return;
+    }
+
+    if (
+      afterLocation &&
+      beforeLocation &&
+      categoryIndex(afterLocation.categoryId) >
+        categoryIndex(beforeLocation.categoryId)
+    ) {
+      setAddError({
+        categoryId,
+        message:
+          "The task that must come first is already in a later section.",
+      });
+      return;
+    }
+
     const task: Task = { id: crypto.randomUUID(), text, done: false };
-    setState({
-      ...state,
-      tasks: {
-        ...state.tasks,
-        [categoryId]: [...(state.tasks[categoryId] ?? []), task],
-      },
-    });
+    const nextDependencies = [...state.dependencies];
+    if (afterLocation) {
+      nextDependencies.push({ before: afterLocation.task.id, after: task.id });
+    }
+    if (beforeLocation) {
+      nextDependencies.push({ before: task.id, after: beforeLocation.task.id });
+    }
+
+    setState(
+      sortState({
+        ...state,
+        tasks: {
+          ...state.tasks,
+          [categoryId]: [...(state.tasks[categoryId] ?? []), task],
+        },
+        dependencies: nextDependencies,
+      }),
+    );
+    setAddError(null);
     form.reset();
   }
 
@@ -635,6 +806,120 @@ export default function TaskList() {
     setState(sortState({ ...state, tasks }));
   }
 
+  function addDependency(taskId: string) {
+    const taskLocation = findTask(state, taskId);
+    if (!taskLocation) return;
+
+    if (!depAfterId && !depBeforeId) {
+      setDepError("Choose a task that must happen before or after this one.");
+      return;
+    }
+    if (depAfterId === taskId || depBeforeId === taskId) {
+      setDepError("A task can't be ordered against itself.");
+      return;
+    }
+    if (depAfterId && depBeforeId && depAfterId === depBeforeId) {
+      setDepError("Choose two different tasks for the range.");
+      return;
+    }
+
+    const afterLocation = depAfterId ? findTask(state, depAfterId) : null;
+    const beforeLocation = depBeforeId ? findTask(state, depBeforeId) : null;
+    if (
+      (depAfterId && !afterLocation) ||
+      (depBeforeId && !beforeLocation)
+    ) {
+      setDepError("That task no longer exists.");
+      return;
+    }
+
+    const taskIndex = categoryIndex(taskLocation.categoryId);
+    const nextDependencies = [...state.dependencies];
+
+    if (afterLocation) {
+      if (categoryIndex(afterLocation.categoryId) > taskIndex) {
+        setDepError(
+          `“${afterLocation.task.text}” is in ${sectionLabel(
+            afterLocation.categoryId,
+          )}, which is after ${sectionLabel(taskLocation.categoryId)}.`,
+        );
+        return;
+      }
+      if (
+        state.dependencies.some(
+          (edge) =>
+            edge.before === afterLocation.task.id && edge.after === taskId,
+        )
+      ) {
+        setDepError("That ordering already exists.");
+        return;
+      }
+      nextDependencies.push({
+        before: afterLocation.task.id,
+        after: taskId,
+      });
+    }
+
+    if (beforeLocation) {
+      if (categoryIndex(beforeLocation.categoryId) < taskIndex) {
+        setDepError(
+          `“${beforeLocation.task.text}” is in ${sectionLabel(
+            beforeLocation.categoryId,
+          )}, which is before ${sectionLabel(taskLocation.categoryId)}.`,
+        );
+        return;
+      }
+      if (
+        state.dependencies.some(
+          (edge) =>
+            edge.before === taskId && edge.after === beforeLocation.task.id,
+        )
+      ) {
+        setDepError("That ordering already exists.");
+        return;
+      }
+      nextDependencies.push({
+        before: taskId,
+        after: beforeLocation.task.id,
+      });
+    }
+
+    if (
+      afterLocation &&
+      beforeLocation &&
+      categoryIndex(afterLocation.categoryId) >
+        categoryIndex(beforeLocation.categoryId)
+    ) {
+      setDepError(
+        `“${afterLocation.task.text}” already comes after “${beforeLocation.task.text}”.`,
+      );
+      return;
+    }
+
+    const graph = buildGraph(nextDependencies);
+    if (traverse(taskId, graph.precedes).has(taskId)) {
+      setDepError("Those rules would create a loop.");
+      return;
+    }
+
+    setState(sortState({ ...state, dependencies: nextDependencies }));
+    setDepAfterId("");
+    setDepBeforeId("");
+    setDepError(null);
+  }
+
+  function removeDependency(before: string, after: string) {
+    setState(
+      sortState({
+        ...state,
+        dependencies: state.dependencies.filter(
+          (edge) => !(edge.before === before && edge.after === after),
+        ),
+      }),
+    );
+    setDepError(null);
+  }
+
   function startEditingNotes(task: Task) {
     setExpandedTaskId(task.id);
     setNotesTaskId(task.id);
@@ -646,6 +931,9 @@ export default function TaskList() {
     setExpandedTaskId((current) => (current === taskId ? null : taskId));
     setNotesTaskId(null);
     setNotesDraft("");
+    setDepAfterId("");
+    setDepBeforeId("");
+    setDepError(null);
   }
 
   function goToParent(parentId: string) {
@@ -653,6 +941,9 @@ export default function TaskList() {
     setNotesTaskId(null);
     setNotesDraft("");
     setSubtaskParentId(null);
+    setDepAfterId("");
+    setDepBeforeId("");
+    setDepError(null);
     requestAnimationFrame(() => {
       document
         .getElementById(`task-${parentId}`)
@@ -717,6 +1008,10 @@ export default function TaskList() {
     setState({
       ...state,
       tasks,
+      dependencies: state.dependencies.filter(
+        (edge) =>
+          !removedIds.has(edge.before) && !removedIds.has(edge.after),
+      ),
       removedDefaults: [
         ...new Set([...state.removedDefaults, ...removedIds]),
       ],
@@ -793,9 +1088,9 @@ export default function TaskList() {
         Add tasks under the part of the year they belong to. Default events are
         already listed and can be moved to another section. Use + to add a
         subtask in the same or an earlier section; open a subtask to edit its
-        lead time. Click a task to expand its description; use Tab to indent
-        bullets. Some tasks have ordering rules that are enforced
-        automatically.
+        lead time. Click a task to expand its description. Ordering rules are
+        shown under each task, and can be changed in the expanded panel or when
+        adding an event.
       </p>
 
       <div className="mt-10 flex flex-col gap-10">
@@ -832,6 +1127,20 @@ export default function TaskList() {
                     const notesOpen = notesTaskId === task.id;
                     const expanded = expandedTaskId === task.id;
                     const bounds = moveBounds(state, task);
+                    const incomingEdges = state.dependencies.filter(
+                      (edge) => edge.after === task.id,
+                    );
+                    const outgoingEdges = state.dependencies.filter(
+                      (edge) => edge.before === task.id,
+                    );
+                    const afterNames = incomingEdges.flatMap((edge) => {
+                      const location = findTask(state, edge.before);
+                      return location ? [location.task.text] : [];
+                    });
+                    const beforeNames = outgoingEdges.flatMap((edge) => {
+                      const location = findTask(state, edge.after);
+                      return location ? [location.task.text] : [];
+                    });
 
                     return (
                       <li
@@ -924,6 +1233,21 @@ export default function TaskList() {
                           </button>
                         </div>
 
+                        {(afterNames.length > 0 || beforeNames.length > 0) && (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
+                            {afterNames.length > 0 && (
+                              <span>After {afterNames.join(", ")}</span>
+                            )}
+                            {afterNames.length > 0 &&
+                              beforeNames.length > 0 && (
+                                <span aria-hidden>·</span>
+                              )}
+                            {beforeNames.length > 0 && (
+                              <span>Before {beforeNames.join(", ")}</span>
+                            )}
+                          </div>
+                        )}
+
                         {parent && (
                           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
                             <span>Subtask of</span>
@@ -996,6 +1320,138 @@ export default function TaskList() {
                                 </p>
                               </div>
                             )}
+                            <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+                              <div className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
+                                Ordering
+                              </div>
+                              {incomingEdges.length === 0 &&
+                              outgoingEdges.length === 0 ? (
+                                <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                                  No ordering rules yet.
+                                </p>
+                              ) : (
+                                <ul className="mt-1.5 flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-300">
+                                  {incomingEdges.map((edge) => {
+                                    const other = findTask(state, edge.before);
+                                    const otherText =
+                                      other?.task.text ?? "Unknown task";
+                                    return (
+                                      <li
+                                        key={`${edge.before}->${edge.after}`}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <span className="min-w-0 flex-1">
+                                          After{" "}
+                                          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                                            {otherText}
+                                          </span>
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeDependency(
+                                              edge.before,
+                                              edge.after,
+                                            )
+                                          }
+                                          aria-label={`Remove rule that ${otherText} comes before ${task.text}`}
+                                          className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+                                        >
+                                          ×
+                                        </button>
+                                      </li>
+                                    );
+                                  })}
+                                  {outgoingEdges.map((edge) => {
+                                    const other = findTask(state, edge.after);
+                                    const otherText =
+                                      other?.task.text ?? "Unknown task";
+                                    return (
+                                      <li
+                                        key={`${edge.before}->${edge.after}`}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <span className="min-w-0 flex-1">
+                                          Before{" "}
+                                          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                                            {otherText}
+                                          </span>
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeDependency(
+                                              edge.before,
+                                              edge.after,
+                                            )
+                                          }
+                                          aria-label={`Remove rule that ${task.text} comes before ${otherText}`}
+                                          className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+                                        >
+                                          ×
+                                        </button>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                                <span>Must be between</span>
+                                <select
+                                  value={depAfterId}
+                                  onChange={(event) => {
+                                    setDepAfterId(event.target.value);
+                                    setDepError(null);
+                                  }}
+                                  aria-label={`Task that must come before ${task.text}`}
+                                  className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                                >
+                                  <option value="">Any</option>
+                                  {taskOptions
+                                    .filter((option) => option.id !== task.id)
+                                    .map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                </select>
+                                <span>and</span>
+                                <select
+                                  value={depBeforeId}
+                                  onChange={(event) => {
+                                    setDepBeforeId(event.target.value);
+                                    setDepError(null);
+                                  }}
+                                  aria-label={`Task that must come after ${task.text}`}
+                                  className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                                >
+                                  <option value="">Any</option>
+                                  {taskOptions
+                                    .filter((option) => option.id !== task.id)
+                                    .map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => addDependency(task.id)}
+                                  className="h-7 rounded-md bg-zinc-900 px-2.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                                >
+                                  Add
+                                </button>
+                              </div>
+                              {depError && (
+                                <p
+                                  role="alert"
+                                  className="mt-1 text-xs text-red-600 dark:text-red-400"
+                                >
+                                  {depError}
+                                </p>
+                              )}
+                            </div>
                             {notesOpen ? (
                               <form
                                 onSubmit={(event) => {
@@ -1179,21 +1635,63 @@ export default function TaskList() {
                   event.preventDefault();
                   addTask(category.id, event.currentTarget);
                 }}
-                className="mt-3 flex gap-2"
+                className="mt-3 flex flex-col gap-2"
               >
-                <input
-                  name="text"
-                  placeholder="Add a task…"
-                  aria-label={`Add a task to ${category.label}`}
-                  autoComplete="off"
-                  className="h-9 flex-1 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600"
-                />
-                <button
-                  type="submit"
-                  className="h-9 shrink-0 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                >
-                  Add
-                </button>
+                <div className="flex gap-2">
+                  <input
+                    name="text"
+                    placeholder="Add a task…"
+                    aria-label={`Add a task to ${category.label}`}
+                    autoComplete="off"
+                    className="h-9 flex-1 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600"
+                  />
+                  <button
+                    type="submit"
+                    className="h-9 shrink-0 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  >
+                    Add
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                  <label className="flex items-center gap-1.5">
+                    <span>Must be after</span>
+                    <select
+                      name="after"
+                      defaultValue=""
+                      className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                    >
+                      <option value="">Any</option>
+                      {taskOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <span>and before</span>
+                    <select
+                      name="before"
+                      defaultValue=""
+                      className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                    >
+                      <option value="">Any</option>
+                      {taskOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                {addError?.categoryId === category.id && (
+                  <p
+                    role="alert"
+                    className="text-xs text-red-600 dark:text-red-400"
+                  >
+                    {addError.message}
+                  </p>
+                )}
               </form>
             </section>
           );
