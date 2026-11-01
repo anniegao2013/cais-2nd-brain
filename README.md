@@ -25,6 +25,7 @@ dependencies.
 | `components/` | Presentational UI, from the board down to a single task row |
 | `hooks/use-task-board.ts` | Client-side UI state and task actions |
 | `lib/` | Domain logic: categories, tags, defaults, ordering, placement, notes, storage, and task operations |
+| `tests/` | Vitest suites for the pure logic in `lib/` |
 
 Within `lib/`, `types.ts` defines the shared models; `defaults.ts` seeds the
 board; `categories.ts` and `tags.ts` hold the constants; `dependencies.ts` and
@@ -42,6 +43,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Testing
+
+Logic tests use [Vitest](https://vitest.dev/) and live in `tests/`. They cover
+ordering, spans, subtask placement, validation, storage migration, notes, tags,
+and the seeded defaults.
+
+```bash
+npm test          # run once
+npm run test:watch
+```
+
 ## Stack
 
 - Next.js 16 (App Router)
@@ -57,3 +69,5 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run build` | Build for production |
 | `npm start` | Run the production build |
 | `npm run lint` | Lint the codebase |
+| `npm test` | Run the unit tests once |
+| `npm run test:watch` | Run the unit tests in watch mode |

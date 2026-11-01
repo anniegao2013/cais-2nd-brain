@@ -149,7 +149,10 @@ export function sanitizeSubtaskPlacement(state: AppState): AppState {
         if (targetCategory === categoryId) {
           tasks[categoryId].push(nextTask);
         } else {
-          tasks[targetCategory] = [...tasks[targetCategory], nextTask];
+          tasks[targetCategory] = [
+            ...(tasks[targetCategory] ?? []),
+            nextTask,
+          ];
         }
       }
     }

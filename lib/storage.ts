@@ -21,7 +21,7 @@ function isTask(value: unknown): value is Task {
   );
 }
 
-function normalizeStorage(raw: string): AppState {
+export function normalizeStorage(raw: string): AppState {
   const parsed: unknown = JSON.parse(raw);
 
   // Older saves were just a category -> tasks map.
