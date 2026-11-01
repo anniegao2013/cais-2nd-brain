@@ -29,37 +29,218 @@ const CATEGORIES = [
 ];
 
 // Seeded tasks. Keep each id stable: stored moves and deletions reference it.
-const DEFAULT_EVENTS: Array<{ id: string; text: string; category: string }> = [
+const DEFAULT_EVENTS: Array<{
+  id: string;
+  text: string;
+  category: string;
+  recruitment?: boolean;
+}> = [
   { id: "default-1", text: "Handoffs", category: "spring" },
   { id: "default-2", text: "Introductions", category: "spring" },
   { id: "default-3", text: "First e-board meeting", category: "spring" },
   { id: "default-4", text: "Confirm leads", category: "spring" },
   { id: "default-5", text: "Fall project sourcing", category: "summer" },
   { id: "default-6", text: "Curriculum edits", category: "summer" },
-  { id: "default-7", text: "Recruitment prep", category: "summer" },
+  {
+    id: "default-7",
+    text: "Recruitment prep",
+    category: "summer",
+    recruitment: true,
+  },
   { id: "default-8", text: "Sponsorship outreach", category: "summer" },
   { id: "default-9", text: "RSO re-recognition", category: "summer" },
-  { id: "default-10", text: "Open written apps", category: "week-1" },
-  { id: "default-11", text: "Classification", category: "week-4" },
+  {
+    id: "default-10",
+    text: "Open written apps",
+    category: "week-1",
+    recruitment: true,
+  },
+  {
+    id: "default-11",
+    text: "Classification",
+    category: "week-4",
+    recruitment: true,
+  },
   { id: "default-12", text: "Retreat", category: "week-8" },
   { id: "default-13", text: "Midsem ShowCAIS", category: "week-11" },
   { id: "default-14", text: "OpenShowCAIS", category: "week-15" },
-  { id: "default-15", text: "Written delibs", category: "week-3" },
-  { id: "default-16", text: "Group interviews", category: "week-3" },
-  { id: "default-17", text: "Individual interviews", category: "week-4" },
+  {
+    id: "default-15",
+    text: "Written delibs",
+    category: "week-3",
+    recruitment: true,
+  },
+  {
+    id: "default-16",
+    text: "Group interviews",
+    category: "week-3",
+    recruitment: true,
+  },
+  {
+    id: "default-17",
+    text: "Individual interviews",
+    category: "week-4",
+    recruitment: true,
+  },
   { id: "default-18", text: "Big little reveal", category: "week-10" },
   { id: "default-19", text: "Spring project sourcing", category: "week-7" },
 ];
+
+// Recruitment tasks must stay in this relative order when moved.
+const RECRUITMENT_CHAIN = [
+  "default-7",
+  "default-10",
+  "default-15",
+  "default-16",
+  "default-17",
+  "default-11",
+];
+
+const DEFAULT_BY_ID = new Map(DEFAULT_EVENTS.map((event) => [event.id, event]));
+
+// Additional ordering rules: `task` must happen after `after`.
+const DEPENDENCIES = [
+  { task: "default-18", after: "default-12" }, // Big little reveal after Retreat
+];
+
+const PRECEDENCE_EDGES: Array<[string, string]> = [
+  ...RECRUITMENT_CHAIN.slice(1).map(
+    (id, index) => [RECRUITMENT_CHAIN[index], id] as [string, string],
+  ),
+  ...DEPENDENCIES.map(({ after, task }) => [after, task] as [string, string]),
+];
+
+// PRECEDES: id -> tasks that must come after it. FOLLOWS: id -> tasks before it.
+const PRECEDES = new Map<string, string[]>();
+const FOLLOWS = new Map<string, string[]>();
+for (const [before, after] of PRECEDENCE_EDGES) {
+  PRECEDES.set(before, [...(PRECEDES.get(before) ?? []), after]);
+  FOLLOWS.set(after, [...(FOLLOWS.get(after) ?? []), before]);
+}
+
+const SEQUENCED_IDS = new Set(PRECEDENCE_EDGES.flat());
+
+function traverse(startId: string, edges: Map<string, string[]>): Set<string> {
+  const seen = new Set<string>();
+  const stack = [...(edges.get(startId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (id === undefined || seen.has(id)) continue;
+    seen.add(id);
+    stack.push(...(edges.get(id) ?? []));
+  }
+  return seen;
+}
+
+// Sort only tasks that have ordering rules, leaving other tasks in their slots.
+function sortSequenced(tasks: Task[]): Task[] {
+  const positions: number[] = [];
+  const nodes: Task[] = [];
+  tasks.forEach((task, index) => {
+    if (SEQUENCED_IDS.has(task.id)) {
+      positions.push(index);
+      nodes.push(task);
+    }
+  });
+  if (nodes.length < 2) return tasks;
+
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const indegree = new Map(nodes.map((node) => [node.id, 0]));
+  const outgoing = new Map<string, Set<string>>();
+
+  for (const [before, after] of PRECEDENCE_EDGES) {
+    if (!nodeIds.has(before) || !nodeIds.has(after)) continue;
+    const targets = outgoing.get(before) ?? new Set<string>();
+    if (targets.has(after)) continue;
+    targets.add(after);
+    outgoing.set(before, targets);
+    indegree.set(after, (indegree.get(after) ?? 0) + 1);
+  }
+
+  const ordered: Task[] = [];
+  const remaining = [...nodes];
+  while (remaining.length > 0) {
+    // Stable choice: earliest task whose predecessors are all placed.
+    const pick = remaining.findIndex(
+      (node) => (indegree.get(node.id) ?? 0) === 0,
+    );
+    if (pick === -1) break; // Guard against a cycle.
+
+    const [node] = remaining.splice(pick, 1);
+    ordered.push(node);
+    for (const target of outgoing.get(node.id) ?? []) {
+      indegree.set(target, (indegree.get(target) ?? 0) - 1);
+    }
+  }
+  ordered.push(...remaining);
+
+  const sorted = [...tasks];
+  positions.forEach((position, index) => {
+    sorted[position] = ordered[index];
+  });
+  return sorted;
+}
+
+function sortState(state: AppState): AppState {
+  const tasks: TasksByCategory = {};
+  for (const [categoryId, list] of Object.entries(state.tasks)) {
+    tasks[categoryId] = sortSequenced(list);
+  }
+  return { ...state, tasks };
+}
+
+function categoryIndex(categoryId: string): number {
+  return CATEGORIES.findIndex((category) => category.id === categoryId);
+}
+
+function findTask(
+  state: AppState,
+  taskId: string,
+): { categoryId: string; task: Task } | null {
+  for (const [categoryId, list] of Object.entries(state.tasks)) {
+    const task = list.find((candidate) => candidate.id === taskId);
+    if (task) return { categoryId, task };
+  }
+  return null;
+}
+
+// A sequenced task may not move before a predecessor or after a successor.
+function sequenceBounds(
+  state: AppState,
+  taskId: string,
+): { min: number; max: number } {
+  if (!SEQUENCED_IDS.has(taskId)) {
+    return { min: 0, max: CATEGORIES.length - 1 };
+  }
+
+  let min = 0;
+  let max = CATEGORIES.length - 1;
+  for (const id of traverse(taskId, FOLLOWS)) {
+    const location = findTask(state, id);
+    if (location) min = Math.max(min, categoryIndex(location.categoryId));
+  }
+  for (const id of traverse(taskId, PRECEDES)) {
+    const location = findTask(state, id);
+    if (location) max = Math.min(max, categoryIndex(location.categoryId));
+  }
+  return { min, max };
+}
 
 function buildDefaultState(): AppState {
   const tasks: TasksByCategory = {};
   for (const event of DEFAULT_EVENTS) {
     tasks[event.category] = [
       ...(tasks[event.category] ?? []),
-      { id: event.id, text: event.text, done: false, isDefault: true },
+      {
+        id: event.id,
+        text: event.text,
+        done: false,
+        isDefault: true,
+        recruitment: event.recruitment,
+      },
     ];
   }
-  return { tasks, removedDefaults: [] };
+  return sortState({ tasks, removedDefaults: [] });
 }
 
 const DEFAULT_STATE: AppState = buildDefaultState();
@@ -92,7 +273,14 @@ function normalizeStorage(raw: string): AppState {
 
   const cleaned: TasksByCategory = {};
   for (const [categoryId, list] of Object.entries(tasks)) {
-    cleaned[categoryId] = Array.isArray(list) ? list.filter(isTask) : [];
+    cleaned[categoryId] = Array.isArray(list)
+      ? list.filter(isTask).map((task) => {
+          const seed = DEFAULT_BY_ID.get(task.id);
+          return seed?.recruitment && !task.recruitment
+            ? { ...task, recruitment: true }
+            : task;
+        })
+      : [];
   }
 
   // Default events always exist unless they were deliberately removed.
@@ -103,11 +291,17 @@ function normalizeStorage(raw: string): AppState {
     if (removedDefaults.includes(event.id) || presentIds.has(event.id)) continue;
     cleaned[event.category] = [
       ...(cleaned[event.category] ?? []),
-      { id: event.id, text: event.text, done: false, isDefault: true },
+      {
+        id: event.id,
+        text: event.text,
+        done: false,
+        isDefault: true,
+        recruitment: event.recruitment,
+      },
     ];
   }
 
-  return { tasks: cleaned, removedDefaults };
+  return sortState({ tasks: cleaned, removedDefaults });
 }
 
 function readStorage(): AppState {
@@ -211,16 +405,22 @@ export default function TaskList() {
     );
     if (!task) return;
 
-    setState({
-      ...state,
-      tasks: {
-        ...state.tasks,
-        [fromCategoryId]: (state.tasks[fromCategoryId] ?? []).filter(
-          (candidate) => candidate.id !== taskId,
-        ),
-        [toCategoryId]: [...(state.tasks[toCategoryId] ?? []), task],
-      },
-    });
+    const bounds = sequenceBounds(state, taskId);
+    const targetIndex = categoryIndex(toCategoryId);
+    if (targetIndex < bounds.min || targetIndex > bounds.max) return;
+
+    setState(
+      sortState({
+        ...state,
+        tasks: {
+          ...state.tasks,
+          [fromCategoryId]: (state.tasks[fromCategoryId] ?? []).filter(
+            (candidate) => candidate.id !== taskId,
+          ),
+          [toCategoryId]: [...(state.tasks[toCategoryId] ?? []), task],
+        },
+      }),
+    );
   }
 
   return (
@@ -230,7 +430,8 @@ export default function TaskList() {
       </h1>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         Add tasks under the part of the year they belong to. Default events are
-        already listed and can be moved to another section.
+        already listed and can be moved to another section. Recruitment events
+        are tagged and stay in their required order.
       </p>
 
       <div className="mt-10 flex flex-col gap-10">
@@ -254,7 +455,9 @@ export default function TaskList() {
 
               {tasks.length > 0 && (
                 <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-                  {tasks.map((task) => (
+                  {tasks.map((task) => {
+                    const bounds = sequenceBounds(state, task.id);
+                    return (
                     <li
                       key={task.id}
                       className="group flex items-center gap-3 py-2.5"
@@ -277,6 +480,11 @@ export default function TaskList() {
                       >
                         {task.text}
                       </span>
+                      {task.recruitment && (
+                        <span className="shrink-0 rounded border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                          Recruitment
+                        </span>
+                      )}
                       <select
                         value={category.id}
                         onChange={(event) =>
@@ -285,8 +493,15 @@ export default function TaskList() {
                         aria-label={`Move "${task.text}" to another section`}
                         className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 dark:focus:border-zinc-600"
                       >
-                        {CATEGORIES.map((option) => (
-                          <option key={option.id} value={option.id}>
+                        {CATEGORIES.map((option, optionIndex) => (
+                          <option
+                            key={option.id}
+                            value={option.id}
+                            disabled={
+                              optionIndex < bounds.min ||
+                              optionIndex > bounds.max
+                            }
+                          >
                             {option.label}
                           </option>
                         ))}
@@ -300,7 +515,8 @@ export default function TaskList() {
                         ×
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
 
