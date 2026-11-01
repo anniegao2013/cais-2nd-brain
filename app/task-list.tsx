@@ -2,12 +2,32 @@
 
 import { useSyncExternalStore, useState } from "react";
 
+const TAGS = [
+  { id: "projects", label: "Projects" },
+  { id: "curriculum", label: "Curriculum" },
+  { id: "recruitment", label: "Recruitment" },
+  { id: "social", label: "Social events" },
+  { id: "gm", label: "GM" },
+] as const;
+
+type TagId = (typeof TAGS)[number]["id"];
+
+const TAG_IDS = new Set<string>(TAGS.map((tag) => tag.id));
+
+function isTagId(value: unknown): value is TagId {
+  return typeof value === "string" && TAG_IDS.has(value);
+}
+
+function tagLabel(tagId: string): string {
+  return TAGS.find((tag) => tag.id === tagId)?.label ?? tagId;
+}
+
 type Task = {
   id: string;
   text: string;
   done: boolean;
   isDefault?: boolean;
-  recruitment?: boolean;
+  tags?: TagId[];
   parentId?: string;
   leadWeeks?: number;
   notes?: string;
@@ -40,7 +60,7 @@ const DEFAULT_EVENTS: Array<{
   id: string;
   text: string;
   category: string;
-  recruitment?: boolean;
+  tags?: TagId[];
   parentId?: string;
   leadWeeks?: number;
 }> = [
@@ -54,7 +74,7 @@ const DEFAULT_EVENTS: Array<{
     id: "default-7",
     text: "Recruitment prep",
     category: "summer",
-    recruitment: true,
+    tags: ["recruitment"],
   },
   { id: "default-8", text: "Sponsorship outreach", category: "summer" },
   { id: "default-9", text: "RSO re-recognition", category: "summer" },
@@ -62,13 +82,13 @@ const DEFAULT_EVENTS: Array<{
     id: "default-10",
     text: "Open written apps",
     category: "week-1",
-    recruitment: true,
+    tags: ["recruitment"],
   },
   {
     id: "default-11",
     text: "Classification",
     category: "week-4",
-    recruitment: true,
+    tags: ["recruitment"],
   },
   { id: "default-12", text: "Retreat", category: "week-8" },
   { id: "default-13", text: "Midsem ShowCAIS", category: "week-11" },
@@ -77,19 +97,19 @@ const DEFAULT_EVENTS: Array<{
     id: "default-15",
     text: "Written delibs",
     category: "week-3",
-    recruitment: true,
+    tags: ["recruitment"],
   },
   {
     id: "default-16",
     text: "Group interviews",
     category: "week-3",
-    recruitment: true,
+    tags: ["recruitment"],
   },
   {
     id: "default-17",
     text: "Individual interviews",
     category: "week-4",
-    recruitment: true,
+    tags: ["recruitment"],
   },
   { id: "default-18", text: "Big little reveal", category: "week-10" },
   { id: "default-19", text: "Spring project sourcing", category: "week-7" },
@@ -433,7 +453,7 @@ function buildDefaultState(): AppState {
         text: event.text,
         done: false,
         isDefault: true,
-        recruitment: event.recruitment,
+        tags: event.tags,
         parentId: event.parentId,
         leadWeeks: event.leadWeeks,
       },
@@ -521,12 +541,25 @@ function normalizeStorage(raw: string): AppState {
     cleaned[categoryId] = Array.isArray(list)
       ? list.filter(isTask).map((task) => {
           const seed = DEFAULT_BY_ID.get(task.id);
-          let next = task;
-          if (seed?.recruitment && next.recruitment === undefined) {
-            next = { ...next, recruitment: true };
-          }
+          // Older saves stored a single `recruitment` boolean; newer saves
+          // store a `tags` array. A missing tags array falls back to legacy or
+          // seeded tags, while an empty array is respected.
+          const legacyRecruitment = (task as { recruitment?: unknown })
+            .recruitment;
+          const tags: TagId[] = Array.isArray(task.tags)
+            ? task.tags.filter(isTagId)
+            : typeof legacyRecruitment === "boolean"
+              ? legacyRecruitment
+                ? ["recruitment"]
+                : []
+              : seed?.tags
+                ? [...seed.tags]
+                : [];
+
+          const next: Task & { recruitment?: boolean } = { ...task, tags };
+          delete next.recruitment;
           if (seed?.leadWeeks !== undefined && next.leadWeeks === undefined) {
-            next = { ...next, leadWeeks: seed.leadWeeks };
+            next.leadWeeks = seed.leadWeeks;
           }
           return next;
         })
@@ -554,7 +587,7 @@ function normalizeStorage(raw: string): AppState {
         text: event.text,
         done: false,
         isDefault: true,
-        recruitment: event.recruitment,
+        tags: event.tags,
         parentId: event.parentId,
         leadWeeks: event.leadWeeks,
       },
@@ -626,6 +659,7 @@ export default function TaskList() {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [activeTags, setActiveTags] = useState<TagId[]>([]);
   const [depAfterId, setDepAfterId] = useState("");
   const [depBeforeId, setDepBeforeId] = useState("");
   const [depError, setDepError] = useState<string | null>(null);
@@ -641,6 +675,21 @@ export default function TaskList() {
       label: `${task.text} · ${category.label}`,
     })),
   );
+
+  function matchesFilter(task: Task) {
+    return (
+      activeTags.length === 0 ||
+      (task.tags ?? []).some((tag) => activeTags.includes(tag))
+    );
+  }
+
+  function toggleTagFilter(tagId: TagId) {
+    setActiveTags((current) =>
+      current.includes(tagId)
+        ? current.filter((tag) => tag !== tagId)
+        : [...current, tagId],
+    );
+  }
 
   function addTask(categoryId: string, form: HTMLFormElement) {
     const data = new FormData(form);
@@ -942,16 +991,21 @@ export default function TaskList() {
     setTitleError(null);
   }
 
-  function toggleRecruitment(categoryId: string, taskId: string) {
+  function toggleTag(categoryId: string, taskId: string, tagId: TagId) {
     setState({
       ...state,
       tasks: {
         ...state.tasks,
-        [categoryId]: (state.tasks[categoryId] ?? []).map((task) =>
-          task.id === taskId
-            ? { ...task, recruitment: !task.recruitment }
-            : task,
-        ),
+        [categoryId]: (state.tasks[categoryId] ?? []).map((task) => {
+          if (task.id !== taskId) return task;
+          const tags = task.tags ?? [];
+          return {
+            ...task,
+            tags: tags.includes(tagId)
+              ? tags.filter((tag) => tag !== tagId)
+              : [...tags, tagId],
+          };
+        }),
       },
     });
   }
@@ -978,6 +1032,14 @@ export default function TaskList() {
   }
 
   function goToParent(parentId: string) {
+    const parentLocation = findTask(state, parentId);
+    if (
+      parentLocation &&
+      activeTags.length > 0 &&
+      !matchesFilter(parentLocation.task)
+    ) {
+      setActiveTags([]);
+    }
     setExpandedTaskId(parentId);
     setNotesTaskId(null);
     setNotesDraft("");
@@ -985,7 +1047,7 @@ export default function TaskList() {
     setDepAfterId("");
     setDepBeforeId("");
     setDepError(null);
-    setTitleDraft(findTask(state, parentId)?.task.text ?? "");
+    setTitleDraft(parentLocation?.task.text ?? "");
     setTitleError(null);
     requestAnimationFrame(() => {
       document
@@ -1122,6 +1184,10 @@ export default function TaskList() {
     setState(sortState({ ...state, tasks }));
   }
 
+  const allTasks = Object.values(state.tasks).flat();
+  const totalTaskCount = allTasks.length;
+  const filteredTaskCount = allTasks.filter(matchesFilter).length;
+
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-12">
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
@@ -1133,12 +1199,60 @@ export default function TaskList() {
         subtask in the same or an earlier section; open a subtask to edit its
         lead time. Click a task to expand it, where you can change its title,
         description, tags, and ordering rules. Ordering can also be set when
-        adding an event.
+        adding an event. Use the filter bar to show only tasks with selected
+        tags.
       </p>
+
+      <div
+        className="mt-6 flex flex-wrap items-center gap-1.5"
+        role="group"
+        aria-label="Filter tasks by tag"
+      >
+        <span className="mr-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          Filter
+        </span>
+        <button
+          type="button"
+          onClick={() => setActiveTags([])}
+          aria-pressed={activeTags.length === 0}
+          className={
+            activeTags.length === 0
+              ? "rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              : "rounded-full border border-zinc-200 px-2.5 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+          }
+        >
+          All
+        </button>
+        {TAGS.map((tag) => {
+          const active = activeTags.includes(tag.id);
+          return (
+            <button
+              key={tag.id}
+              type="button"
+              onClick={() => toggleTagFilter(tag.id)}
+              aria-pressed={active}
+              className={
+                active
+                  ? "rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  : "rounded-full border border-zinc-200 px-2.5 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+              }
+            >
+              {tag.label}
+            </button>
+          );
+        })}
+      </div>
+      {activeTags.length > 0 && (
+        <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+          Showing {filteredTaskCount} of {totalTaskCount} tasks
+          {activeTags.length > 1 ? " · matching any selected tag" : ""}
+        </p>
+      )}
 
       <div className="mt-10 flex flex-col gap-10">
         {CATEGORIES.map((category) => {
-          const tasks = state.tasks[category.id] ?? [];
+          const tasks = (state.tasks[category.id] ?? []).filter(matchesFilter);
+          if (activeTags.length > 0 && tasks.length === 0) return null;
           const remaining = tasks.filter((task) => !task.done).length;
 
           return (
@@ -1220,11 +1334,6 @@ export default function TaskList() {
                               {expanded ? "▾" : "▸"}
                             </span>
                           </button>
-                          {task.recruitment && (
-                            <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                              Recruitment
-                            </span>
-                          )}
                           {!isSubtask && (
                             <button
                               type="button"
@@ -1275,6 +1384,19 @@ export default function TaskList() {
                             ×
                           </button>
                         </div>
+
+                        {(task.tags?.length ?? 0) > 0 && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
+                            {task.tags?.map((tagId) => (
+                              <span
+                                key={tagId}
+                                className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                              >
+                                {tagLabel(tagId)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         {(afterNames.length > 0 || beforeNames.length > 0) && (
                           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
@@ -1366,27 +1488,33 @@ export default function TaskList() {
                                 <span className="text-xs text-zinc-500 dark:text-zinc-400">
                                   Tags
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    toggleRecruitment(category.id, task.id)
-                                  }
-                                  aria-pressed={Boolean(task.recruitment)}
-                                  aria-label={
-                                    task.recruitment
-                                      ? `Remove Recruitment tag from ${task.text}`
-                                      : `Add Recruitment tag to ${task.text}`
-                                  }
-                                  className={
-                                    task.recruitment
-                                      ? "rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                                      : "rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
-                                  }
-                                >
-                                  {task.recruitment
-                                    ? "Recruitment ×"
-                                    : "+ Recruitment"}
-                                </button>
+                                {TAGS.map((tag) => {
+                                  const active = (task.tags ?? []).includes(
+                                    tag.id,
+                                  );
+                                  return (
+                                    <button
+                                      key={tag.id}
+                                      type="button"
+                                      onClick={() =>
+                                        toggleTag(category.id, task.id, tag.id)
+                                      }
+                                      aria-pressed={active}
+                                      aria-label={`${
+                                        active ? "Remove" : "Add"
+                                      } ${tag.label} tag ${
+                                        active ? "from" : "to"
+                                      } ${task.text}`}
+                                      className={
+                                        active
+                                          ? "rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                                          : "rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+                                      }
+                                    >
+                                      {active ? `${tag.label} ×` : `+ ${tag.label}`}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
                             {task.parentId && parent && (
@@ -1739,72 +1867,79 @@ export default function TaskList() {
                 </ul>
               )}
 
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  addTask(category.id, event.currentTarget);
-                }}
-                className="mt-3 flex flex-col gap-2"
-              >
-                <div className="flex gap-2">
-                  <input
-                    name="text"
-                    placeholder="Add a task…"
-                    aria-label={`Add a task to ${category.label}`}
-                    autoComplete="off"
-                    className="h-9 flex-1 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600"
-                  />
-                  <button
-                    type="submit"
-                    className="h-9 shrink-0 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                  <label className="flex items-center gap-1.5">
-                    <span>Must be after</span>
-                    <select
-                      name="after"
-                      defaultValue=""
-                      className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+              {activeTags.length === 0 && (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    addTask(category.id, event.currentTarget);
+                  }}
+                  className="mt-3 flex flex-col gap-2"
+                >
+                  <div className="flex gap-2">
+                    <input
+                      name="text"
+                      placeholder="Add a task…"
+                      aria-label={`Add a task to ${category.label}`}
+                      autoComplete="off"
+                      className="h-9 flex-1 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600"
+                    />
+                    <button
+                      type="submit"
+                      className="h-9 shrink-0 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                     >
-                      <option value="">Any</option>
-                      {taskOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-1.5">
-                    <span>and before</span>
-                    <select
-                      name="before"
-                      defaultValue=""
-                      className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    <label className="flex items-center gap-1.5">
+                      <span>Must be after</span>
+                      <select
+                        name="after"
+                        defaultValue=""
+                        className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                      >
+                        <option value="">Any</option>
+                        {taskOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <span>and before</span>
+                      <select
+                        name="before"
+                        defaultValue=""
+                        className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+                      >
+                        <option value="">Any</option>
+                        {taskOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {addError?.categoryId === category.id && (
+                    <p
+                      role="alert"
+                      className="text-xs text-red-600 dark:text-red-400"
                     >
-                      <option value="">Any</option>
-                      {taskOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                {addError?.categoryId === category.id && (
-                  <p
-                    role="alert"
-                    className="text-xs text-red-600 dark:text-red-400"
-                  >
-                    {addError.message}
-                  </p>
-                )}
-              </form>
+                      {addError.message}
+                    </p>
+                  )}
+                </form>
+              )}
             </section>
           );
         })}
+        {activeTags.length > 0 && filteredTaskCount === 0 && (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            No tasks match these tags.
+          </p>
+        )}
       </div>
     </div>
   );

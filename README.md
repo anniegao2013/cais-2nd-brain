@@ -6,9 +6,10 @@ Tasks live under sequential sections: before the end of spring semester,
 summer, and weeks 1–15. A set of default tasks is pre-filled and can be moved
 to another section or deleted. Tasks can have subtasks with editable lead times,
 plus descriptions that expand on click and render as nested bullet points.
-Expanding a task also lets you edit its title, toggle tags, and change its
-ordering rules. New tasks can optionally be placed between two existing tasks.
-Everything is stored in the browser.
+Expanding a task also lets you edit its title, toggle multiple tags, and change
+its ordering rules. A filter bar narrows the timeline to tasks with selected
+tags. New tasks can optionally be placed between two existing tasks. Everything
+is stored in the browser.
 
 Default tasks and their starter ordering rules are defined in
 `app/task-list.tsx`; keep each entry's `id` stable since it is used to remember
