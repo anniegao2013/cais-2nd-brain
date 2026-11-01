@@ -522,7 +522,7 @@ function normalizeStorage(raw: string): AppState {
       ? list.filter(isTask).map((task) => {
           const seed = DEFAULT_BY_ID.get(task.id);
           let next = task;
-          if (seed?.recruitment && !next.recruitment) {
+          if (seed?.recruitment && next.recruitment === undefined) {
             next = { ...next, recruitment: true };
           }
           if (seed?.leadWeeks !== undefined && next.leadWeeks === undefined) {
@@ -624,6 +624,8 @@ export default function TaskList() {
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [depAfterId, setDepAfterId] = useState("");
   const [depBeforeId, setDepBeforeId] = useState("");
   const [depError, setDepError] = useState<string | null>(null);
@@ -920,6 +922,40 @@ export default function TaskList() {
     setDepError(null);
   }
 
+  function renameTask(categoryId: string, taskId: string, rawTitle: string) {
+    const title = rawTitle.trim();
+    if (!title) {
+      setTitleError("A title can't be empty.");
+      return;
+    }
+
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: (state.tasks[categoryId] ?? []).map((task) =>
+          task.id === taskId ? { ...task, text: title } : task,
+        ),
+      },
+    });
+    setTitleDraft(title);
+    setTitleError(null);
+  }
+
+  function toggleRecruitment(categoryId: string, taskId: string) {
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: (state.tasks[categoryId] ?? []).map((task) =>
+          task.id === taskId
+            ? { ...task, recruitment: !task.recruitment }
+            : task,
+        ),
+      },
+    });
+  }
+
   function startEditingNotes(task: Task) {
     setExpandedTaskId(task.id);
     setNotesTaskId(task.id);
@@ -928,12 +964,17 @@ export default function TaskList() {
   }
 
   function toggleExpanded(taskId: string) {
-    setExpandedTaskId((current) => (current === taskId ? null : taskId));
+    const opening = expandedTaskId !== taskId;
+    setExpandedTaskId(opening ? taskId : null);
     setNotesTaskId(null);
     setNotesDraft("");
     setDepAfterId("");
     setDepBeforeId("");
     setDepError(null);
+    setTitleError(null);
+    if (opening) {
+      setTitleDraft(findTask(state, taskId)?.task.text ?? "");
+    }
   }
 
   function goToParent(parentId: string) {
@@ -944,6 +985,8 @@ export default function TaskList() {
     setDepAfterId("");
     setDepBeforeId("");
     setDepError(null);
+    setTitleDraft(findTask(state, parentId)?.task.text ?? "");
+    setTitleError(null);
     requestAnimationFrame(() => {
       document
         .getElementById(`task-${parentId}`)
@@ -1088,8 +1131,8 @@ export default function TaskList() {
         Add tasks under the part of the year they belong to. Default events are
         already listed and can be moved to another section. Use + to add a
         subtask in the same or an earlier section; open a subtask to edit its
-        lead time. Click a task to expand its description. Ordering rules are
-        shown under each task, and can be changed in the expanded panel or when
+        lead time. Click a task to expand it, where you can change its title,
+        description, tags, and ordering rules. Ordering can also be set when
         adding an event.
       </p>
 
@@ -1178,7 +1221,7 @@ export default function TaskList() {
                             </span>
                           </button>
                           {task.recruitment && (
-                            <span className="shrink-0 rounded border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                            <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                               Recruitment
                             </span>
                           )}
@@ -1280,6 +1323,72 @@ export default function TaskList() {
                                 ← Go to {parent.text}
                               </button>
                             )}
+                            <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+                              <form
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  renameTask(category.id, task.id, titleDraft);
+                                }}
+                              >
+                                <label
+                                  htmlFor={`title-${task.id}`}
+                                  className="text-xs font-medium text-zinc-900 dark:text-zinc-100"
+                                >
+                                  Title
+                                </label>
+                                <div className="mt-1.5 flex gap-2">
+                                  <input
+                                    id={`title-${task.id}`}
+                                    value={titleDraft}
+                                    onChange={(event) => {
+                                      setTitleDraft(event.target.value);
+                                      setTitleError(null);
+                                    }}
+                                    className="h-8 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-600"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="h-8 shrink-0 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                                {titleError && (
+                                  <p
+                                    role="alert"
+                                    className="mt-1 text-xs text-red-600 dark:text-red-400"
+                                  >
+                                    {titleError}
+                                  </p>
+                                )}
+                              </form>
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                  Tags
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    toggleRecruitment(category.id, task.id)
+                                  }
+                                  aria-pressed={Boolean(task.recruitment)}
+                                  aria-label={
+                                    task.recruitment
+                                      ? `Remove Recruitment tag from ${task.text}`
+                                      : `Add Recruitment tag to ${task.text}`
+                                  }
+                                  className={
+                                    task.recruitment
+                                      ? "rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                                      : "rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+                                  }
+                                >
+                                  {task.recruitment
+                                    ? "Recruitment ×"
+                                    : "+ Recruitment"}
+                                </button>
+                              </div>
+                            </div>
                             {task.parentId && parent && (
                               <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
