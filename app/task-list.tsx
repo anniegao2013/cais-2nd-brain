@@ -545,11 +545,6 @@ export default function TaskList() {
   const [notesDraft, setNotesDraft] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
-  const taskById = new Map<string, Task>();
-  for (const list of Object.values(state.tasks)) {
-    for (const task of list) taskById.set(task.id, task);
-  }
-
   function addTask(categoryId: string, form: HTMLFormElement) {
     const data = new FormData(form);
     const text = String(data.get("text") ?? "").trim();
@@ -598,6 +593,48 @@ export default function TaskList() {
     setSubtaskText("");
   }
 
+  function updateSubtaskLead(
+    categoryId: string,
+    taskId: string,
+    rawLead: number,
+  ) {
+    const task = (state.tasks[categoryId] ?? []).find(
+      (candidate) => candidate.id === taskId,
+    );
+    if (!task?.parentId) return;
+
+    const parent = findTask(state, task.parentId);
+    if (!parent) return;
+
+    const parentIndex = categoryIndex(parent.categoryId);
+    const lead = Math.max(
+      0,
+      Math.min(parentIndex, Math.floor(Number.isFinite(rawLead) ? rawLead : 0)),
+    );
+    const latestIndex = parentIndex - lead;
+
+    const tasks: TasksByCategory = {};
+    for (const [id, list] of Object.entries(state.tasks)) {
+      tasks[id] = list.filter((candidate) => candidate.id !== taskId);
+    }
+
+    const nextTask: Task = { ...task };
+    if (lead > 0) {
+      nextTask.leadWeeks = lead;
+    } else {
+      delete nextTask.leadWeeks;
+    }
+
+    const targetIndex = Math.max(
+      0,
+      Math.min(categoryIndex(categoryId), latestIndex),
+    );
+    const targetCategory = CATEGORIES[targetIndex].id;
+    tasks[targetCategory] = [...(tasks[targetCategory] ?? []), nextTask];
+
+    setState(sortState({ ...state, tasks }));
+  }
+
   function startEditingNotes(task: Task) {
     setExpandedTaskId(task.id);
     setNotesTaskId(task.id);
@@ -609,6 +646,18 @@ export default function TaskList() {
     setExpandedTaskId((current) => (current === taskId ? null : taskId));
     setNotesTaskId(null);
     setNotesDraft("");
+  }
+
+  function goToParent(parentId: string) {
+    setExpandedTaskId(parentId);
+    setNotesTaskId(null);
+    setNotesDraft("");
+    setSubtaskParentId(null);
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`task-${parentId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   function saveNotes(categoryId: string, taskId: string) {
@@ -743,9 +792,10 @@ export default function TaskList() {
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         Add tasks under the part of the year they belong to. Default events are
         already listed and can be moved to another section. Use + to add a
-        subtask in the same or an earlier section. Click a task to expand its
-        description; use Tab to indent bullets. Some tasks have ordering rules
-        that are enforced automatically.
+        subtask in the same or an earlier section; open a subtask to edit its
+        lead time. Click a task to expand its description; use Tab to indent
+        bullets. Some tasks have ordering rules that are enforced
+        automatically.
       </p>
 
       <div className="mt-10 flex flex-col gap-10">
@@ -770,9 +820,13 @@ export default function TaskList() {
               {tasks.length > 0 && (
                 <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
                   {tasks.map((task) => {
-                    const parent = task.parentId
-                      ? taskById.get(task.parentId)
-                      : undefined;
+                    const parentLocation = task.parentId
+                      ? findTask(state, task.parentId)
+                      : null;
+                    const parent = parentLocation?.task;
+                    const parentMaxIndex = parentLocation
+                      ? categoryIndex(parentLocation.categoryId)
+                      : 0;
                     const isSubtask = Boolean(task.parentId);
                     const formOpen = subtaskParentId === task.id;
                     const notesOpen = notesTaskId === task.id;
@@ -782,6 +836,7 @@ export default function TaskList() {
                     return (
                       <li
                         key={task.id}
+                        id={`task-${task.id}`}
                         className={`py-2.5 ${isSubtask ? "pl-6" : ""}`}
                       >
                         <div className="group flex items-center gap-3">
@@ -816,11 +871,6 @@ export default function TaskList() {
                           {task.recruitment && (
                             <span className="shrink-0 rounded border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                               Recruitment
-                            </span>
-                          )}
-                          {parent && (
-                            <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
-                              ↳ {parent.text}
                             </span>
                           )}
                           {!isSubtask && (
@@ -874,8 +924,78 @@ export default function TaskList() {
                           </button>
                         </div>
 
+                        {parent && (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
+                            <span>Subtask of</span>
+                            <button
+                              type="button"
+                              onClick={() => goToParent(parent.id)}
+                              className="font-medium text-zinc-700 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-200 dark:hover:text-zinc-50"
+                            >
+                              {parent.text}
+                            </button>
+                            <span aria-hidden>·</span>
+                            <span>
+                              {task.leadWeeks
+                                ? `at least ${task.leadWeeks} week${
+                                    task.leadWeeks === 1 ? "" : "s"
+                                  } before`
+                                : "can be scheduled the same week or earlier"}
+                            </span>
+                          </div>
+                        )}
+
                         {expanded && (
                           <div id={`details-${task.id}`} className="mt-2 pl-7">
+                            {parent && (
+                              <button
+                                type="button"
+                                onClick={() => goToParent(parent.id)}
+                                className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-zinc-600 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-300 dark:hover:text-zinc-50"
+                              >
+                                ← Go to {parent.text}
+                              </button>
+                            )}
+                            {task.parentId && parent && (
+                              <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+                                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                                    Lead time
+                                  </span>
+                                  <label
+                                    htmlFor={`lead-${task.id}`}
+                                    className="flex flex-wrap items-center gap-1.5"
+                                  >
+                                    <span>must be at least</span>
+                                    <input
+                                      id={`lead-${task.id}`}
+                                      type="number"
+                                      inputMode="numeric"
+                                      min={0}
+                                      max={Math.max(0, parentMaxIndex)}
+                                      value={task.leadWeeks ?? 0}
+                                      onChange={(event) =>
+                                        updateSubtaskLead(
+                                          category.id,
+                                          task.id,
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                      className="h-7 w-14 rounded-md border border-zinc-200 bg-white px-2 text-center text-xs tabular-nums text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-600"
+                                    />
+                                    <span>
+                                      week{task.leadWeeks === 1 ? "" : "s"}{" "}
+                                      before {parent.text}
+                                    </span>
+                                  </label>
+                                </div>
+                                <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                                  {task.leadWeeks
+                                    ? `Moves with ${parent.text} when it is rescheduled.`
+                                    : `Can be scheduled in the same section as ${parent.text} or earlier.`}
+                                </p>
+                              </div>
+                            )}
                             {notesOpen ? (
                               <form
                                 onSubmit={(event) => {
