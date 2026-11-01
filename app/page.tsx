@@ -1,4 +1,4 @@
-import TaskList from "./task-list";
+import TaskBoard from "@/components/task-board";
 
 export default function Home() {
   return (
@@ -11,7 +11,7 @@ export default function Home() {
         </div>
       </header>
       <main className="flex flex-1 flex-col">
-        <TaskList />
+        <TaskBoard />
       </main>
     </div>
   );

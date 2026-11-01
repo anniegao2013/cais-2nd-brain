@@ -13,9 +13,25 @@ and ordering rules. A filter bar narrows the timeline to tasks with selected
 tags. New tasks can optionally be placed between two existing tasks and can be
 given an end section. Everything is stored in the browser.
 
-Default tasks and their starter ordering rules are defined in
-`app/task-list.tsx`; keep each entry's `id` stable since it is used to remember
-moves, deletions, and dependencies.
+Default tasks and their starter ordering rules live in `lib/defaults.ts`; keep
+each entry's `id` stable since it is used to remember moves, deletions, and
+dependencies.
+
+## Project structure
+
+| Path | Responsibility |
+| --- | --- |
+| `app/` | Next.js routes and layout |
+| `components/` | Presentational UI, from the board down to a single task row |
+| `hooks/use-task-board.ts` | Client-side UI state and task actions |
+| `lib/` | Domain logic: categories, tags, defaults, ordering, placement, notes, storage, and task operations |
+
+Within `lib/`, `types.ts` defines the shared models; `defaults.ts` seeds the
+board; `categories.ts` and `tags.ts` hold the constants; `dependencies.ts` and
+`dependency-actions.ts` handle ordering; `placement.ts` and `span-actions.ts`
+handle moves and spans; `tasks.ts` derives occurrences; `notes.ts` parses
+descriptions; `task-actions.ts` mutates tasks; and `storage.ts` persists
+everything in localStorage.
 
 ## Getting started
 
