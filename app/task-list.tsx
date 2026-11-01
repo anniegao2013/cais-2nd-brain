@@ -757,6 +757,7 @@ export default function TaskList() {
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
   const [titleDraft, setTitleDraft] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
   const [activeTags, setActiveTags] = useState<TagId[]>([]);
@@ -1185,15 +1186,21 @@ export default function TaskList() {
 
   function startEditingNotes(task: Task, occurrenceCategoryId: string) {
     setExpandedRowKey(`${task.id}:${occurrenceCategoryId}`);
+    setPanelMode("edit");
     setNotesTaskId(task.id);
     setNotesDraft(task.notes ?? "");
     setSubtaskParentId(null);
   }
 
-  function toggleExpanded(taskId: string, occurrenceCategoryId: string) {
+  function togglePanel(
+    taskId: string,
+    occurrenceCategoryId: string,
+    mode: "view" | "edit",
+  ) {
     const rowKey = `${taskId}:${occurrenceCategoryId}`;
-    const opening = expandedRowKey !== rowKey;
+    const opening = expandedRowKey !== rowKey || panelMode !== mode;
     setExpandedRowKey(opening ? rowKey : null);
+    setPanelMode(mode);
     setNotesTaskId(null);
     setNotesDraft("");
     setDepAfterId("");
@@ -1219,6 +1226,7 @@ export default function TaskList() {
         ? `${parentId}:${parentLocation.categoryId}`
         : null,
     );
+    setPanelMode("view");
     setNotesTaskId(null);
     setNotesDraft("");
     setSubtaskParentId(null);
@@ -1380,13 +1388,13 @@ export default function TaskList() {
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         Add tasks under the part of the year they belong to. Default events are
         already listed and can be moved to another section. Tasks can also span
-        several weeks: pick an end section when adding one, or change it after
-        expanding the task, and the task will be listed under every week it
-        covers. Use + to add a subtask in the same or an earlier section; open
-        a subtask to edit its lead time. Click a task to expand it, where you
-        can change its title, description, tags, span, and ordering rules.
-        Ordering can also be set when adding an event. Use the filter bar to
-        show only tasks with selected tags.
+        several weeks: pick an end section when adding one, or change it while
+        editing, and the task will be listed under every week it covers. Use +
+        to add a subtask in the same or an earlier section; open a subtask to
+        edit its lead time. Click ▸ or the task title to read the description,
+        and use Edit to change the title, description, tags, span, and ordering
+        rules. Ordering can also be set when adding an event. Use the filter bar
+        to show only tasks with selected tags.
       </p>
 
       <div
@@ -1471,9 +1479,13 @@ export default function TaskList() {
                       : 0;
                     const isSubtask = Boolean(task.parentId);
                     const rowKey = `${task.id}:${category.id}`;
+                    const descriptionId = `description-${task.id}-${category.id}`;
+                    const editorId = `editor-${task.id}-${category.id}`;
                     const formOpen = isStart && subtaskParentId === task.id;
                     const notesOpen = notesTaskId === task.id;
-                    const expanded = expandedRowKey === rowKey;
+                    const panelOpen = expandedRowKey === rowKey;
+                    const viewing = panelOpen && panelMode === "view";
+                    const editing = panelOpen && panelMode === "edit";
                     const bounds = moveBounds(state, task);
                     const spanMaxIndex = Math.max(
                       categoryIndex(startCategoryId),
@@ -1500,7 +1512,7 @@ export default function TaskList() {
                         id={`task-${task.id}-${category.id}`}
                         className={`py-2.5 ${isSubtask ? "pl-6" : ""}`}
                       >
-                        <div className="group flex items-center gap-3">
+                        <div className="group flex flex-wrap items-center gap-2">
                           <input
                             type="checkbox"
                             checked={task.done}
@@ -1512,22 +1524,51 @@ export default function TaskList() {
                           />
                           <button
                             type="button"
-                            onClick={() => toggleExpanded(task.id, category.id)}
-                            aria-expanded={expanded}
-                            aria-controls={`details-${task.id}-${category.id}`}
-                            className={`flex flex-1 items-center gap-1.5 text-left text-sm ${
+                            onClick={() =>
+                              togglePanel(task.id, category.id, "view")
+                            }
+                            aria-expanded={viewing}
+                            aria-controls={descriptionId}
+                            className={`flex flex-1 items-center text-left text-sm ${
                               task.done
                                 ? "text-zinc-400 line-through dark:text-zinc-500"
                                 : "text-zinc-700 dark:text-zinc-300"
                             }`}
                           >
                             <span className="min-w-0 flex-1">{task.text}</span>
-                            <span
-                              aria-hidden
-                              className="shrink-0 text-[10px] text-zinc-400 dark:text-zinc-500"
-                            >
-                              {expanded ? "▾" : "▸"}
-                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              togglePanel(task.id, category.id, "view")
+                            }
+                            aria-expanded={viewing}
+                            aria-controls={descriptionId}
+                            aria-label={`${
+                              viewing ? "Hide" : "Show"
+                            } description for "${task.text}"`}
+                            title={viewing ? "Hide description" : "Show description"}
+                            className="flex size-6 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+                          >
+                            {viewing ? "▾" : "▸"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              togglePanel(task.id, category.id, "edit")
+                            }
+                            aria-expanded={editing}
+                            aria-controls={editorId}
+                            aria-label={`${
+                              editing ? "Close editor for" : "Edit"
+                            } "${task.text}"`}
+                            className={
+                              editing
+                                ? "h-7 shrink-0 rounded-md border border-zinc-900 bg-zinc-900 px-2 text-[11px] font-medium text-white transition-colors hover:bg-zinc-700 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                                : "h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100"
+                            }
+                          >
+                            {editing ? "Done" : "Edit"}
                           </button>
                           {isStart && !isSubtask && (
                             <button
@@ -1649,20 +1690,22 @@ export default function TaskList() {
                           </div>
                         )}
 
-                        {expanded && (
+                        {panelOpen && (
                           <div
-                            id={`details-${task.id}-${category.id}`}
+                            id={editing ? editorId : descriptionId}
                             className="mt-2 pl-7"
                           >
-                            {parent && (
-                              <button
-                                type="button"
-                                onClick={() => goToParent(parent.id)}
-                                className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-zinc-600 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-300 dark:hover:text-zinc-50"
-                              >
-                                ← Go to {parent.text}
-                              </button>
-                            )}
+                            {editing && (
+                              <>
+                                {parent && (
+                                  <button
+                                    type="button"
+                                    onClick={() => goToParent(parent.id)}
+                                    className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-zinc-600 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-300 dark:hover:text-zinc-50"
+                                  >
+                                    ← Go to {parent.text}
+                                  </button>
+                                )}
                             <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
                               <form
                                 onSubmit={(event) => {
@@ -1944,6 +1987,12 @@ export default function TaskList() {
                                 </p>
                               )}
                             </div>
+                              </>
+                            )}
+                            <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+                              <div className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
+                                Description
+                              </div>
                             {notesOpen ? (
                               <form
                                 onSubmit={(event) => {
@@ -2049,15 +2098,22 @@ export default function TaskList() {
                                     No description yet.
                                   </p>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => startEditingNotes(task, category.id)}
-                                  className="mt-2 text-xs font-medium text-zinc-500 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"
-                                >
-                                  {task.notes ? "Edit description" : "Add description"}
-                                </button>
+                                {editing && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      startEditingNotes(task, category.id)
+                                    }
+                                    className="mt-2 text-xs font-medium text-zinc-500 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"
+                                  >
+                                    {task.notes
+                                      ? "Edit description"
+                                      : "Add description"}
+                                  </button>
+                                )}
                               </>
                             )}
+                            </div>
                           </div>
                         )}
 
