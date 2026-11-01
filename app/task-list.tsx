@@ -10,6 +10,7 @@ type Task = {
   recruitment?: boolean;
   parentId?: string;
   leadWeeks?: number;
+  notes?: string;
 };
 
 type TasksByCategory = Record<string, Task[]>;
@@ -328,6 +329,70 @@ function sanitizeSubtaskPlacement(state: AppState): AppState {
   return sortState({ ...state, tasks });
 }
 
+type NoteLine = { level: number; text: string };
+type NoteNode = { text: string; children: NoteNode[] };
+
+// Notes are stored one bullet per line. Leading whitespace sets the nesting
+// level (a tab or two spaces per level); bullet markers are optional.
+function parseNoteLines(raw: string): NoteLine[] {
+  const lines: NoteLine[] = [];
+
+  for (const rawLine of raw.split("\n")) {
+    const indent = rawLine.match(/^[\t ]*/)?.[0] ?? "";
+    const text = rawLine
+      .slice(indent.length)
+      .replace(/^[-*•]\s*/, "")
+      .trim();
+    if (!text) continue;
+
+    const spaces = indent.replace(/\t/g, "  ").length;
+    const level = Math.min(
+      Math.ceil(spaces / 2),
+      lines.length === 0 ? 0 : lines[lines.length - 1].level + 1,
+    );
+    lines.push({ level, text });
+  }
+
+  return lines;
+}
+
+function notesToTree(lines: NoteLine[]): NoteNode[] {
+  const roots: NoteNode[] = [];
+  const stack: NoteNode[] = [];
+
+  for (const line of lines) {
+    const node: NoteNode = { text: line.text, children: [] };
+    if (line.level === 0 || stack.length === 0) {
+      roots.push(node);
+    } else {
+      stack[Math.min(line.level, stack.length) - 1].children.push(node);
+    }
+    stack[line.level] = node;
+    stack.length = line.level + 1;
+  }
+
+  return roots;
+}
+
+function cleanNotes(raw: string): string {
+  return parseNoteLines(raw)
+    .map((line) => `${"  ".repeat(line.level)}${line.text}`)
+    .join("\n");
+}
+
+function NoteBullets({ nodes }: { nodes: NoteNode[] }) {
+  return (
+    <ul className="flex list-disc flex-col gap-1 pl-4 marker:text-zinc-400 dark:marker:text-zinc-600">
+      {nodes.map((node, index) => (
+        <li key={index}>
+          {node.text}
+          {node.children.length > 0 && <NoteBullets nodes={node.children} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function buildDefaultState(): AppState {
   const tasks: TasksByCategory = {};
   for (const event of DEFAULT_EVENTS) {
@@ -476,6 +541,9 @@ export default function TaskList() {
   const [subtaskParentId, setSubtaskParentId] = useState<string | null>(null);
   const [subtaskText, setSubtaskText] = useState("");
   const [subtaskCategoryId, setSubtaskCategoryId] = useState("");
+  const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   const taskById = new Map<string, Task>();
   for (const list of Object.values(state.tasks)) {
@@ -530,6 +598,40 @@ export default function TaskList() {
     setSubtaskText("");
   }
 
+  function startEditingNotes(task: Task) {
+    setExpandedTaskId(task.id);
+    setNotesTaskId(task.id);
+    setNotesDraft(task.notes ?? "");
+    setSubtaskParentId(null);
+  }
+
+  function toggleExpanded(taskId: string) {
+    setExpandedTaskId((current) => (current === taskId ? null : taskId));
+    setNotesTaskId(null);
+    setNotesDraft("");
+  }
+
+  function saveNotes(categoryId: string, taskId: string) {
+    const notes = cleanNotes(notesDraft);
+    setState({
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: (state.tasks[categoryId] ?? []).map((task) => {
+          if (task.id !== taskId) return task;
+          if (!notes) {
+            const next = { ...task };
+            delete next.notes;
+            return next;
+          }
+          return { ...task, notes };
+        }),
+      },
+    });
+    setNotesTaskId(null);
+    setNotesDraft("");
+  }
+
   function toggleTask(categoryId: string, taskId: string) {
     setState({
       ...state,
@@ -571,6 +673,10 @@ export default function TaskList() {
       ],
     });
     if (subtaskParentId === taskId) setSubtaskParentId(null);
+    if (notesTaskId && removedIds.has(notesTaskId)) setNotesTaskId(null);
+    if (expandedTaskId && removedIds.has(expandedTaskId)) {
+      setExpandedTaskId(null);
+    }
   }
 
   function moveTask(fromCategoryId: string, taskId: string, toCategoryId: string) {
@@ -637,8 +743,9 @@ export default function TaskList() {
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         Add tasks under the part of the year they belong to. Default events are
         already listed and can be moved to another section. Use + to add a
-        subtask in the same or an earlier section. Some tasks have ordering
-        rules that are enforced automatically.
+        subtask in the same or an earlier section. Click a task to expand its
+        description; use Tab to indent bullets. Some tasks have ordering rules
+        that are enforced automatically.
       </p>
 
       <div className="mt-10 flex flex-col gap-10">
@@ -668,6 +775,8 @@ export default function TaskList() {
                       : undefined;
                     const isSubtask = Boolean(task.parentId);
                     const formOpen = subtaskParentId === task.id;
+                    const notesOpen = notesTaskId === task.id;
+                    const expanded = expandedTaskId === task.id;
                     const bounds = moveBounds(state, task);
 
                     return (
@@ -685,15 +794,25 @@ export default function TaskList() {
                             }`}
                             className="size-4 shrink-0 accent-zinc-900 dark:accent-zinc-100"
                           />
-                          <span
-                            className={`flex-1 text-sm ${
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(task.id)}
+                            aria-expanded={expanded}
+                            aria-controls={`details-${task.id}`}
+                            className={`flex flex-1 items-center gap-1.5 text-left text-sm ${
                               task.done
                                 ? "text-zinc-400 line-through dark:text-zinc-500"
                                 : "text-zinc-700 dark:text-zinc-300"
                             }`}
                           >
-                            {task.text}
-                          </span>
+                            <span className="min-w-0 flex-1">{task.text}</span>
+                            <span
+                              aria-hidden
+                              className="shrink-0 text-[10px] text-zinc-400 dark:text-zinc-500"
+                            >
+                              {expanded ? "▾" : "▸"}
+                            </span>
+                          </button>
                           {task.recruitment && (
                             <span className="shrink-0 rounded border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                               Recruitment
@@ -715,6 +834,7 @@ export default function TaskList() {
                                 setSubtaskParentId(task.id);
                                 setSubtaskText("");
                                 setSubtaskCategoryId(category.id);
+                                setNotesTaskId(null);
                               }}
                               aria-label={`Add a subtask to "${task.text}"`}
                               aria-expanded={formOpen}
@@ -753,6 +873,125 @@ export default function TaskList() {
                             ×
                           </button>
                         </div>
+
+                        {expanded && (
+                          <div id={`details-${task.id}`} className="mt-2 pl-7">
+                            {notesOpen ? (
+                              <form
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  saveNotes(category.id, task.id);
+                                }}
+                              >
+                                <label
+                                  htmlFor={`notes-${task.id}`}
+                                  className="sr-only"
+                                >
+                                  Description for {task.text}
+                                </label>
+                                <textarea
+                                  id={`notes-${task.id}`}
+                                  value={notesDraft}
+                                  onChange={(event) =>
+                                    setNotesDraft(event.target.value)
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key !== "Tab") return;
+                                    event.preventDefault();
+                                    const target = event.currentTarget;
+                                    const start = target.selectionStart;
+                                    const end = target.selectionEnd;
+
+                                    if (event.shiftKey) {
+                                      const lineStart =
+                                        notesDraft.lastIndexOf(
+                                          "\n",
+                                          start - 1,
+                                        ) + 1;
+                                      const prefix = notesDraft.slice(
+                                        lineStart,
+                                        start,
+                                      );
+                                      const remove = prefix.endsWith("  ")
+                                        ? 2
+                                        : prefix.endsWith(" ")
+                                          ? 1
+                                          : 0;
+                                      if (remove === 0) return;
+                                      setNotesDraft(
+                                        notesDraft.slice(0, start - remove) +
+                                          notesDraft.slice(end),
+                                      );
+                                      requestAnimationFrame(() => {
+                                        target.selectionStart =
+                                          target.selectionEnd = start - remove;
+                                      });
+                                      return;
+                                    }
+
+                                    setNotesDraft(
+                                      notesDraft.slice(0, start) +
+                                        "  " +
+                                        notesDraft.slice(end),
+                                    );
+                                    requestAnimationFrame(() => {
+                                      target.selectionStart =
+                                        target.selectionEnd = start + 2;
+                                    });
+                                  }}
+                                  rows={4}
+                                  placeholder="Add a description — one bullet per line"
+                                  autoFocus
+                                  className="w-full resize-y rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600"
+                                />
+                                <div className="mt-2 flex items-center gap-2">
+                                  <button
+                                    type="submit"
+                                    className="h-8 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setNotesTaskId(null);
+                                      setNotesDraft("");
+                                    }}
+                                    className="h-8 rounded-md px-2 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                                    One bullet per line · Tab indents
+                                  </span>
+                                </div>
+                              </form>
+                            ) : (
+                              <>
+                                {task.notes ? (
+                                  <div className="pr-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                                    <NoteBullets
+                                      nodes={notesToTree(
+                                        parseNoteLines(task.notes),
+                                      )}
+                                    />
+                                  </div>
+                                ) : (
+                                  <p className="text-xs italic text-zinc-400 dark:text-zinc-500">
+                                    No description yet.
+                                  </p>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingNotes(task)}
+                                  className="mt-2 text-xs font-medium text-zinc-500 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"
+                                >
+                                  {task.notes ? "Edit description" : "Add description"}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         {formOpen && !isSubtask && (
                           <form
