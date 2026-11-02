@@ -58,7 +58,11 @@ export function TaskRow({
   return (
     <li
       id={`task-${task.id}-${categoryId}`}
-      className={`py-2.5 ${isSubtask ? "pl-6" : ""}`}
+      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${
+        task.suggested
+          ? "my-1 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-2.5 dark:border-amber-400/40 dark:bg-amber-400/10"
+          : ""
+      }`}
     >
       <div className="group flex flex-wrap items-center gap-2">
         <input
@@ -162,8 +166,18 @@ export function TaskRow({
         )}
       </div>
 
-      {((task.tags?.length ?? 0) > 0 || task.endCategoryId) && (
+      {((task.tags?.length ?? 0) > 0 ||
+        task.endCategoryId ||
+        task.suggested) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
+          {task.suggested && (
+            <span
+              title="An idea you can keep, move, rename, or delete"
+              className="rounded-full border border-dashed border-amber-400 bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:border-amber-400/60 dark:bg-amber-400/15 dark:text-amber-300"
+            >
+              Suggestion
+            </span>
+          )}
           {task.endCategoryId && (
             <span
               aria-label={`Spans ${spanLabel(

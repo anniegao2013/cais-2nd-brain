@@ -22,7 +22,9 @@ export default function TaskBoard() {
         edit its lead time. Click ▸ or the task title to read the description,
         and use Edit to change the title, description, tags, span, and ordering
         rules. Ordering can also be set when adding an event. Use the filter bar
-        to show only tasks with selected tags.
+        to show only tasks with selected tags. Tasks marked Suggestion are just
+        ideas for social events, not events that are already planned: keep,
+        move, rename, or delete them as you like.
       </p>
 
       <TagFilter board={board} />

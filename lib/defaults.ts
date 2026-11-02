@@ -9,6 +9,7 @@ type DefaultEvent = {
   tags?: TagId[];
   parentId?: string;
   leadWeeks?: number;
+  suggested?: boolean;
 };
 
 // Seeded tasks. Keep each id stable: stored moves and deletions reference it.
@@ -77,6 +78,42 @@ export const DEFAULT_EVENTS: DefaultEvent[] = [
     category: "week-2",
     parentId: "default-11",
   },
+  // Social event ideas. These are suggestions: move, rename, or delete them.
+  {
+    id: "default-22",
+    text: "Welcome new members",
+    category: "week-5",
+    tags: ["social"],
+    suggested: true,
+  },
+  {
+    id: "default-23",
+    text: "Fall break",
+    category: "week-7",
+    tags: ["social"],
+    suggested: true,
+  },
+  {
+    id: "default-24",
+    text: "Halloween",
+    category: "week-10",
+    tags: ["social"],
+    suggested: true,
+  },
+  {
+    id: "default-25",
+    text: "Thanksgiving",
+    category: "week-14",
+    tags: ["social"],
+    suggested: true,
+  },
+  {
+    id: "default-26",
+    text: "Christmas / end of semester",
+    category: "week-15",
+    tags: ["social"],
+    suggested: true,
+  },
 ];
 
 // Recruitment tasks start out ordered. These edges (and any others) can be
@@ -116,6 +153,7 @@ function buildDefaultState(): AppState {
         tags: event.tags,
         parentId: event.parentId,
         leadWeeks: event.leadWeeks,
+        suggested: event.suggested,
       },
     ];
   }

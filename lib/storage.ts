@@ -68,6 +68,9 @@ export function normalizeStorage(raw: string): AppState {
           if (seed?.leadWeeks !== undefined && next.leadWeeks === undefined) {
             next.leadWeeks = seed.leadWeeks;
           }
+          if (seed?.suggested && next.suggested === undefined) {
+            next.suggested = true;
+          }
           return next;
         })
       : [];
@@ -97,6 +100,7 @@ export function normalizeStorage(raw: string): AppState {
         tags: event.tags,
         parentId: event.parentId,
         leadWeeks: event.leadWeeks,
+        suggested: event.suggested,
       },
     ];
     presentIds.add(event.id);

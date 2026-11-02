@@ -10,6 +10,9 @@ export type Task = {
   leadWeeks?: number;
   endCategoryId?: string;
   notes?: string;
+  // Marks a starter idea rather than a real task. Suggestions get their own
+  // styling in the timeline until they are deleted.
+  suggested?: boolean;
 };
 
 export type TasksByCategory = Record<string, Task[]>;

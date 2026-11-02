@@ -41,6 +41,50 @@ describe("default events", () => {
   });
 });
 
+describe("social event suggestions", () => {
+  const suggestions = [
+    { id: "default-22", text: "Welcome new members", category: "week-5" },
+    { id: "default-23", text: "Fall break", category: "week-7" },
+    { id: "default-24", text: "Halloween", category: "week-10" },
+    { id: "default-25", text: "Thanksgiving", category: "week-14" },
+    {
+      id: "default-26",
+      text: "Christmas / end of semester",
+      category: "week-15",
+    },
+  ];
+
+  it.each(suggestions)(
+    "seeds $text in $category as a social suggestion",
+    ({ id, text, category }) => {
+      const found = findTask(DEFAULT_STATE, id);
+
+      expect(found?.task.text).toBe(text);
+      expect(found?.categoryId).toBe(category);
+      expect(found?.task.tags).toEqual(["social"]);
+      expect(found?.task.suggested).toBe(true);
+    },
+  );
+
+  it("tags every social suggestion as social", () => {
+    const social = DEFAULT_EVENTS.filter((event) =>
+      event.tags?.includes("social"),
+    );
+
+    expect(social.map((event) => event.id)).toEqual(
+      suggestions.map((suggestion) => suggestion.id),
+    );
+  });
+
+  it("does not mark the other defaults as suggestions", () => {
+    const otherDefaults = DEFAULT_EVENTS.filter(
+      (event) => !event.tags?.includes("social"),
+    );
+
+    expect(otherDefaults.every((event) => !event.suggested)).toBe(true);
+  });
+});
+
 describe("default dependencies", () => {
   it("orders the recruitment chain", () => {
     const chain = [
