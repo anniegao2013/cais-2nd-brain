@@ -1,4 +1,5 @@
 import { sortState } from "./dependencies";
+import { syncSocialPollSubtasks } from "./social-polls";
 import type { TagId } from "./tags";
 import type { AppState, Dependency, TasksByCategory } from "./types";
 
@@ -157,11 +158,13 @@ function buildDefaultState(): AppState {
       },
     ];
   }
-  return sortState({
-    tasks,
-    removedDefaults: [],
-    dependencies: DEFAULT_DEPENDENCIES,
-  });
+  return syncSocialPollSubtasks(
+    sortState({
+      tasks,
+      removedDefaults: [],
+      dependencies: DEFAULT_DEPENDENCIES,
+    }),
+  );
 }
 
 export const DEFAULT_STATE: AppState = buildDefaultState();

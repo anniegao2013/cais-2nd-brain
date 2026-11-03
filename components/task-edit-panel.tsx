@@ -27,10 +27,11 @@ export function TaskEditPanel({
 
   return (
     <>
-      {task.suggested && (
+      {(task.suggested || parent?.suggested) && (
         <p className="mb-3 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300">
-          This is a suggested social event, not a confirmed plan. Edit it, move
-          it to another week, or delete it.
+          {task.suggested
+            ? "This is a suggested social event, not a confirmed plan. Edit it, move it to another week, or delete it."
+            : `This subtask belongs to the suggested event “${parent?.text}”. Edit it, move it, or delete it.`}
         </p>
       )}
       {parent && (

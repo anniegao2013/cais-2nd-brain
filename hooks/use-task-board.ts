@@ -13,6 +13,7 @@ import {
 import { matchesTagFilter, TAGS, type TagId } from "@/lib/tags";
 import * as dependencyActions from "@/lib/dependency-actions";
 import * as spanActions from "@/lib/span-actions";
+import * as socialPollActions from "@/lib/social-polls";
 import * as taskActions from "@/lib/task-actions";
 import { allTasks, findTask } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
@@ -184,6 +185,11 @@ export function useTaskBoard() {
     setState(taskActions.toggleTaskTag(state, categoryId, taskId, tagId));
   }
 
+  function togglePollInterest(pollId: string) {
+    const next = socialPollActions.togglePollInterest(state, pollId);
+    if (next) setState(next);
+  }
+
   function cancelEditingNotes() {
     setNotesTaskId(null);
     setNotesDraft("");
@@ -327,6 +333,7 @@ export function useTaskBoard() {
     setTitleError,
     setTaskSpan,
     toggleTag,
+    togglePollInterest,
     notesTaskId,
     notesDraft,
     setNotesDraft,
