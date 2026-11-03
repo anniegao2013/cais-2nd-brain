@@ -10,6 +10,8 @@ import {
   updateSubtaskLead,
   updateTaskNotes,
 } from "../lib/task-actions";
+import { socialPollId } from "../lib/social-polls";
+import { findTask } from "../lib/tasks";
 import { ids, makeState, makeTask } from "./helpers";
 
 afterEach(() => {
@@ -313,6 +315,34 @@ describe("toggleTaskTag", () => {
 
     expect(added.tasks["week-1"][0].tags).toEqual(["projects", "gm"]);
     expect(removed.tasks["week-1"][0].tags).toEqual(["gm"]);
+  });
+
+  it("adds an interest poll when a task becomes a social event", () => {
+    const state = makeState({ "week-5": [makeTask("t")] });
+
+    const next = toggleTaskTag(state, "week-5", "t", "social");
+
+    expect(findTask(next, socialPollId("t"))).toMatchObject({
+      categoryId: "week-1",
+      task: {
+        text: "Poll for interest",
+        parentId: "t",
+        leadWeeks: 4,
+      },
+    });
+  });
+
+  it("does not duplicate the poll when another tag is added", () => {
+    const state = makeState({
+      "week-5": [makeTask("t", { tags: ["social"] })],
+    });
+
+    const next = toggleTaskTag(state, "week-5", "t", "gm");
+    const polls = Object.values(next.tasks)
+      .flat()
+      .filter((task) => task.id === socialPollId("t"));
+
+    expect(polls).toHaveLength(1);
   });
 });
 

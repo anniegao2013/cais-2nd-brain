@@ -3,6 +3,7 @@ import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
 import type { TaskBoardController } from "@/hooks/use-task-board";
+import { isInterestPoll, socialPollId } from "@/lib/social-polls";
 import { SubtaskForm } from "./subtask-form";
 import { TaskDescription } from "./task-description";
 import { TaskEditPanel } from "./task-edit-panel";
@@ -24,10 +25,21 @@ export function TaskRow({
     ? findTask(board.state, task.parentId)
     : null;
   const parent = parentLocation?.task;
+  const suggested = Boolean(task.suggested || parent?.suggested);
+  const suggestionRow = task.suggested
+    ? "my-1 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-2.5 dark:border-amber-400/40 dark:bg-amber-400/10"
+    : parent?.suggested
+      ? "border-l-2 border-dashed border-amber-300 bg-amber-50/40 dark:border-amber-400/40 dark:bg-amber-400/5"
+      : "";
   const parentMaxIndex = parentLocation
     ? categoryIndex(parentLocation.categoryId)
     : 0;
   const isSubtask = Boolean(task.parentId);
+  const showInterestToggle = isInterestPoll(task);
+  const childPoll = isSubtask
+    ? undefined
+    : findTask(board.state, socialPollId(task.id))?.task;
+  const hasInterest = Boolean(childPoll?.interested);
   const rowKey = `${task.id}:${categoryId}`;
   const descriptionId = `description-${task.id}-${categoryId}`;
   const editorId = `editor-${task.id}-${categoryId}`;
@@ -58,7 +70,7 @@ export function TaskRow({
   return (
     <li
       id={`task-${task.id}-${categoryId}`}
-      className={`py-2.5 ${isSubtask ? "pl-6" : ""}`}
+      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow}`}
     >
       <div className="group flex flex-wrap items-center gap-2">
         <input
@@ -68,7 +80,11 @@ export function TaskRow({
           aria-label={`Mark "${task.text}" as ${
             task.done ? "not done" : "done"
           }`}
-          className="size-4 shrink-0 accent-zinc-900 dark:accent-zinc-100"
+          className={`size-4 shrink-0 ${
+            suggested
+              ? "accent-amber-600 dark:accent-amber-400"
+              : "accent-zinc-900 dark:accent-zinc-100"
+          }`}
         />
         <button
           type="button"
@@ -162,8 +178,37 @@ export function TaskRow({
         )}
       </div>
 
-      {((task.tags?.length ?? 0) > 0 || task.endCategoryId) && (
+      {((task.tags?.length ?? 0) > 0 ||
+        task.endCategoryId ||
+        suggested ||
+        showInterestToggle ||
+        hasInterest) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
+          {suggested && (
+            <span
+              title="An idea you can keep, move, rename, or delete"
+              className="rounded-full border border-dashed border-amber-400 bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:border-amber-400/60 dark:bg-amber-400/15 dark:text-amber-300"
+            >
+              Suggestion
+            </span>
+          )}
+          {showInterestToggle && (
+            <button
+              type="button"
+              onClick={() => board.togglePollInterest(task.id)}
+              aria-pressed={Boolean(task.interested)}
+              aria-label={`${
+                task.interested ? "Remove" : "Mark"
+              } interest for ${parent?.text ?? "this event"}`}
+              className={
+                task.interested
+                  ? "rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 transition-colors hover:bg-emerald-200 dark:border-emerald-400/60 dark:bg-emerald-400/15 dark:text-emerald-300 dark:hover:bg-emerald-400/25"
+                  : "rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+              }
+            >
+              {task.interested ? "Interested ✓" : "Mark interest"}
+            </button>
+          )}
           {task.endCategoryId && (
             <span
               aria-label={`Spans ${spanLabel(
@@ -183,6 +228,11 @@ export function TaskRow({
               {board.tags.find((tag) => tag.id === tagId)?.label ?? tagId}
             </span>
           ))}
+          {hasInterest && (
+            <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:border-emerald-400/60 dark:bg-emerald-400/15 dark:text-emerald-300">
+              Interest confirmed
+            </span>
+          )}
         </div>
       )}
 

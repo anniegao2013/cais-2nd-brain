@@ -6,6 +6,7 @@ import {
 } from "./defaults";
 import { isDependency, pruneDependencies } from "./dependencies";
 import { sanitizeSubtaskPlacement } from "./placement";
+import { syncInterestFollowUps, syncSocialPollSubtasks } from "./social-polls";
 import { isTagId, type TagId } from "./tags";
 import type { AppState, Task, TasksByCategory } from "./types";
 
@@ -68,6 +69,9 @@ export function normalizeStorage(raw: string): AppState {
           if (seed?.leadWeeks !== undefined && next.leadWeeks === undefined) {
             next.leadWeeks = seed.leadWeeks;
           }
+          if (seed?.suggested && next.suggested === undefined) {
+            next.suggested = true;
+          }
           return next;
         })
       : [];
@@ -97,16 +101,21 @@ export function normalizeStorage(raw: string): AppState {
         tags: event.tags,
         parentId: event.parentId,
         leadWeeks: event.leadWeeks,
+        suggested: event.suggested,
       },
     ];
     presentIds.add(event.id);
   }
 
-  return sanitizeSubtaskPlacement({
-    tasks: cleaned,
-    removedDefaults,
-    dependencies: pruneDependencies(dependencies, cleaned),
-  });
+  return sanitizeSubtaskPlacement(
+    syncInterestFollowUps(
+      syncSocialPollSubtasks({
+        tasks: cleaned,
+        removedDefaults,
+        dependencies: pruneDependencies(dependencies, cleaned),
+      }),
+    ),
+  );
 }
 
 function readStorage(): AppState {

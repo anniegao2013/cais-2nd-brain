@@ -2,6 +2,7 @@ import { CATEGORIES, categoryIndex, sectionLabel } from "./categories";
 import { sortState } from "./dependencies";
 import { cleanNotes } from "./notes";
 import { clampTaskSpan, moveBounds, shiftTaskSpan } from "./placement";
+import { syncSocialPollSubtasks } from "./social-polls";
 import { findTask } from "./tasks";
 import type { TagId } from "./tags";
 import type { AppState, Task, TasksByCategory } from "./types";
@@ -213,7 +214,7 @@ export function toggleTaskTag(
   taskId: string,
   tagId: TagId,
 ): AppState {
-  return {
+  const toggled: AppState = {
     ...state,
     tasks: {
       ...state.tasks,
@@ -229,6 +230,8 @@ export function toggleTaskTag(
       }),
     },
   };
+
+  return syncSocialPollSubtasks(toggled);
 }
 
 export function updateTaskNotes(
