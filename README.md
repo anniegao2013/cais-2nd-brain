@@ -3,8 +3,10 @@
 A web app for keeping track of tasks and events.
 
 Tasks live under sequential sections: before the end of spring semester,
-summer, and weeks 1–15. A set of default tasks is pre-filled and can be moved
-to another section or deleted. Tasks can span multiple sections and are listed
+summer, and weeks 1–15. Weeks are anchored to a real calendar: Week 1 starts
+August 25, 2026, and each week header shows its seven-day date range. A set of
+default tasks is pre-filled and can be moved to another section or deleted.
+Tasks can span multiple sections and are listed
 under every week they cover, with the range shown under the title. They can
 also have subtasks with editable lead times, plus descriptions that expand on
 click and render as nested bullet points. Expanding shows the description on
@@ -24,11 +26,12 @@ dependencies.
 | `app/` | Next.js routes and layout |
 | `components/` | Presentational UI, from the board down to a single task row |
 | `hooks/use-task-board.ts` | Client-side UI state and task actions |
-| `lib/` | Domain logic: categories, tags, defaults, ordering, placement, notes, storage, and task operations |
+| `lib/` | Domain logic: categories, calendar dates, tags, defaults, ordering, placement, notes, storage, and task operations |
 | `tests/` | Vitest suites for the pure logic in `lib/` |
 
 Within `lib/`, `types.ts` defines the shared models; `defaults.ts` seeds the
-board; `categories.ts` and `tags.ts` hold the constants; `dependencies.ts` and
+board; `categories.ts`, `calendar.ts`, and `tags.ts` hold the constants and week
+dates; `dependencies.ts` and
 `dependency-actions.ts` handle ordering; `placement.ts` and `span-actions.ts`
 handle moves and spans; `tasks.ts` derives occurrences; `notes.ts` parses
 descriptions; `task-actions.ts` mutates tasks; and `storage.ts` persists
