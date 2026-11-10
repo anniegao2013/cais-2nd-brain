@@ -113,6 +113,17 @@ export function categoryIdForDate(iso: string): string | null {
   return week === null ? null : `week-${week}`;
 }
 
+// Uses the viewer's local calendar date so the indicator changes when their
+// day rolls over, not when UTC does.
+export function currentWeekNumber(now: Date = new Date()): number | null {
+  const iso = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+  return weekNumberForDate(iso);
+}
+
 // Returns the date range for a week section, or null for spring/summer.
 export function weekRangeLabel(categoryId: string): string | null {
   const week = weekNumberFromCategoryId(categoryId);

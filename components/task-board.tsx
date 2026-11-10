@@ -1,13 +1,33 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { useCurrentWeek } from "@/hooks/use-current-week";
 import { useTaskBoard } from "@/hooks/use-task-board";
-import { WEEK_COUNT, timelineRangeLabel } from "@/lib/calendar";
+import {
+  WEEK_COUNT,
+  timelineRangeLabel,
+  weekNumberFromCategoryId,
+} from "@/lib/calendar";
 import { CATEGORIES } from "@/lib/categories";
 import { TagFilter } from "./tag-filter";
 import { TaskSection } from "./task-section";
 
 export default function TaskBoard() {
   const board = useTaskBoard();
+  const currentWeek = useCurrentWeek();
+  const scrolledToCurrentWeek = useRef(false);
+
+  // Land on the week the viewer is in instead of making them scroll past the
+  // earlier sections every time the board loads.
+  useEffect(() => {
+    if (currentWeek === null || scrolledToCurrentWeek.current) return;
+
+    const section = document.getElementById(`week-${currentWeek}-section`);
+    if (!section) return;
+
+    scrolledToCurrentWeek.current = true;
+    section.scrollIntoView({ block: "start" });
+  }, [currentWeek]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-12">
@@ -35,7 +55,12 @@ export default function TaskBoard() {
 
       <div className="mt-10 flex flex-col gap-10">
         {CATEGORIES.map((category) => (
-          <TaskSection key={category.id} board={board} category={category} />
+          <TaskSection
+            key={category.id}
+            board={board}
+            category={category}
+            isCurrentWeek={weekNumberFromCategoryId(category.id) === currentWeek}
+          />
         ))}
         {board.activeTags.length > 0 && board.filteredTaskCount === 0 && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">

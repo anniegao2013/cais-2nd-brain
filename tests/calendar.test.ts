@@ -4,6 +4,7 @@ import {
   CLASSES_END_ISO,
   WEEK_COUNT,
   WEEK_ONE_START,
+  currentWeekNumber,
   gmDateLabel,
   timelineRangeLabel,
   weekNumberFromCategoryId,
@@ -75,6 +76,18 @@ describe("weekRangeLabel", () => {
 describe("timelineRangeLabel", () => {
   it("spans Classes Begin through Classes End", () => {
     expect(timelineRangeLabel()).toBe("Aug 24 – Dec 4, 2026");
+  });
+});
+
+describe("currentWeekNumber", () => {
+  it("finds the week containing today's local date", () => {
+    expect(currentWeekNumber(new Date(2026, 10, 9, 12))).toBe(12);
+    expect(currentWeekNumber(new Date(2026, 10, 15, 23, 59))).toBe(12);
+  });
+
+  it("returns null outside the instructional timeline", () => {
+    expect(currentWeekNumber(new Date(2026, 7, 23, 12))).toBeNull();
+    expect(currentWeekNumber(new Date(2026, 11, 5, 12))).toBeNull();
   });
 });
 
