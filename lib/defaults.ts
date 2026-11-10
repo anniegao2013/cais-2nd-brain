@@ -2,19 +2,22 @@ import { sortState } from "./dependencies";
 import { syncSocialPollSubtasks } from "./social-polls";
 import type { TagId } from "./tags";
 import type { AppState, Dependency, TasksByCategory } from "./types";
+import { USC_TIMELINE_HOLIDAYS } from "./usc-holidays";
 
 type DefaultEvent = {
   id: string;
   text: string;
   category: string;
+  endCategoryId?: string;
   tags?: TagId[];
   parentId?: string;
   leadWeeks?: number;
   suggested?: boolean;
+  isHoliday?: boolean;
 };
 
 // Seeded tasks. Keep each id stable: stored moves and deletions reference it.
-export const DEFAULT_EVENTS: DefaultEvent[] = [
+const BASE_DEFAULT_EVENTS: DefaultEvent[] = [
   { id: "default-1", text: "Handoffs", category: "spring" },
   { id: "default-2", text: "Introductions", category: "spring" },
   { id: "default-3", text: "First e-board meeting", category: "spring" },
@@ -117,6 +120,23 @@ export const DEFAULT_EVENTS: DefaultEvent[] = [
   },
 ];
 
+// USC holidays and recesses are scraped from the academic calendar. Only the
+// ones that overlap Weeks 1–15 make it onto this board.
+const USC_HOLIDAY_EVENTS: DefaultEvent[] = USC_TIMELINE_HOLIDAYS.map(
+  (holiday) => ({
+    id: holiday.id,
+    text: holiday.label,
+    category: holiday.categoryId,
+    endCategoryId: holiday.endCategoryId,
+    isHoliday: true,
+  }),
+);
+
+export const DEFAULT_EVENTS: DefaultEvent[] = [
+  ...BASE_DEFAULT_EVENTS,
+  ...USC_HOLIDAY_EVENTS,
+];
+
 // Recruitment tasks start out ordered. These edges (and any others) can be
 // removed or added from the task editor and are stored with the state.
 const RECRUITMENT_CHAIN = [
@@ -151,6 +171,8 @@ function buildDefaultState(): AppState {
         text: event.text,
         done: false,
         isDefault: true,
+        endCategoryId: event.endCategoryId,
+        isHoliday: event.isHoliday,
         tags: event.tags,
         parentId: event.parentId,
         leadWeeks: event.leadWeeks,

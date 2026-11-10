@@ -374,6 +374,15 @@ describe("toggleTaskDone", () => {
       true,
     );
   });
+
+  it("leaves USC holidays unchecked", () => {
+    const state = makeState({
+      "week-2": [makeTask("holiday", { isHoliday: true })],
+    });
+
+    expect(toggleTaskDone(state, "week-2", "holiday")).toBe(state);
+    expect(state.tasks["week-2"][0].done).toBe(false);
+  });
 });
 
 describe("deleteTask", () => {

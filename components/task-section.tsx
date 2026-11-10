@@ -16,7 +16,9 @@ export function TaskSection({
   );
   if (board.activeTags.length > 0 && occurrences.length === 0) return null;
 
-  const remaining = occurrences.filter(({ task }) => !task.done).length;
+  const remaining = occurrences.filter(
+    ({ task }) => !task.done && !task.isHoliday,
+  ).length;
   const dateRange = weekRangeLabel(category.id);
 
   return (

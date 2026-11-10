@@ -63,6 +63,24 @@ export function weekRange(week: number): WeekRange {
   };
 }
 
+export const TIMELINE_START_ISO = WEEK_ONE_START;
+export const TIMELINE_END_ISO = weekRange(WEEK_COUNT).endISO;
+
+// Maps a real calendar date to the numbered week that contains it.
+export function weekNumberForDate(iso: string): number | null {
+  const ms = Date.parse(`${iso}T00:00:00Z`);
+  if (Number.isNaN(ms)) return null;
+
+  const offset = ms - WEEK_ONE_START_MS;
+  if (offset < 0 || offset >= WEEK_COUNT * WEEK_MS) return null;
+  return Math.floor(offset / WEEK_MS) + 1;
+}
+
+export function categoryIdForDate(iso: string): string | null {
+  const week = weekNumberForDate(iso);
+  return week === null ? null : `week-${week}`;
+}
+
 // Returns the date range for a week section, or null for spring/summer.
 export function weekRangeLabel(categoryId: string): string | null {
   const week = weekNumberFromCategoryId(categoryId);

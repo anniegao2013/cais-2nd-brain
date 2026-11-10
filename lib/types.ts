@@ -15,6 +15,9 @@ export type Task = {
   suggested?: boolean;
   // Set on an interest poll when enough people said they want the event.
   interested?: boolean;
+  // USC academic-calendar dates are shown as reference events, not tasks, so
+  // they get their own styling and cannot be checked off.
+  isHoliday?: boolean;
 };
 
 export type TasksByCategory = Record<string, Task[]>;

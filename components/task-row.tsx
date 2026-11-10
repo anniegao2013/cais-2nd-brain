@@ -32,6 +32,11 @@ export function TaskRow({
     : parent?.suggested
       ? "border-l-2 border-dashed border-amber-300 bg-amber-50/40 dark:border-amber-400/40 dark:bg-amber-400/5"
       : "";
+  const holidayRow = task.isHoliday
+    ? "my-1 rounded-md border border-sky-300 bg-sky-50/70 px-2.5 dark:border-sky-400/40 dark:bg-sky-400/10"
+    : parent?.isHoliday
+      ? "border-l-2 border-sky-300 bg-sky-50/40 dark:border-sky-400/40 dark:bg-sky-400/5"
+      : "";
   const parentMaxIndex = parentLocation
     ? categoryIndex(parentLocation.categoryId)
     : 0;
@@ -72,31 +77,54 @@ export function TaskRow({
   return (
     <li
       id={`task-${task.id}-${categoryId}`}
-      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow}`}
+      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow}`}
     >
       <div className="group flex flex-wrap items-center gap-2">
-        <input
-          type="checkbox"
-          checked={task.done}
-          onChange={() => board.toggleTask(startCategoryId, task.id)}
-          aria-label={`Mark "${task.text}" as ${
-            task.done ? "not done" : "done"
-          }`}
-          className={`size-4 shrink-0 ${
-            suggested
-              ? "accent-amber-600 dark:accent-amber-400"
-              : "accent-zinc-900 dark:accent-zinc-100"
-          }`}
-        />
+        {task.isHoliday ? (
+          <span
+            role="img"
+            aria-label={`${task.text} is a USC holiday and cannot be checked off`}
+            title="USC holiday — this date can't be checked off"
+            className="flex size-4 shrink-0 items-center justify-center rounded-full border border-sky-400 bg-sky-100 text-sky-700 dark:border-sky-400/60 dark:bg-sky-400/20 dark:text-sky-300"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              className="size-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <rect x="2" y="3.5" width="12" height="10.5" rx="1.5" />
+              <path d="M2 6.5h12M5 2v3M11 2v3" strokeLinecap="round" />
+            </svg>
+          </span>
+        ) : (
+          <input
+            type="checkbox"
+            checked={task.done}
+            onChange={() => board.toggleTask(startCategoryId, task.id)}
+            aria-label={`Mark "${task.text}" as ${
+              task.done ? "not done" : "done"
+            }`}
+            className={`size-4 shrink-0 ${
+              suggested
+                ? "accent-amber-600 dark:accent-amber-400"
+                : "accent-zinc-900 dark:accent-zinc-100"
+            }`}
+          />
+        )}
         <button
           type="button"
           onClick={() => board.togglePanel(task.id, categoryId, "view")}
           aria-expanded={viewing}
           aria-controls={descriptionId}
           className={`flex flex-1 items-center text-left text-sm ${
-            task.done
-              ? "text-zinc-400 line-through dark:text-zinc-500"
-              : "text-zinc-700 dark:text-zinc-300"
+            task.isHoliday
+              ? "font-medium text-sky-900 dark:text-sky-200"
+              : task.done
+                ? "text-zinc-400 line-through dark:text-zinc-500"
+                : "text-zinc-700 dark:text-zinc-300"
           }`}
         >
           <span className="min-w-0 flex-1">{task.text}</span>
@@ -185,8 +213,17 @@ export function TaskRow({
         suggested ||
         showInterestToggle ||
         hasInterest ||
-        gmDate) && (
+        gmDate ||
+        task.isHoliday) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
+          {task.isHoliday && (
+            <span
+              title="Pulled from the USC academic calendar"
+              className="rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:border-sky-400/60 dark:bg-sky-400/15 dark:text-sky-300"
+            >
+              USC calendar
+            </span>
+          )}
           {suggested && (
             <span
               title="An idea you can keep, move, rename, or delete"

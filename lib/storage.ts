@@ -72,6 +72,10 @@ export function normalizeStorage(raw: string): AppState {
           if (seed?.suggested && next.suggested === undefined) {
             next.suggested = true;
           }
+          if (seed?.isHoliday) {
+            next.isHoliday = true;
+            next.done = false;
+          }
           return next;
         })
       : [];
@@ -98,6 +102,8 @@ export function normalizeStorage(raw: string): AppState {
         text: event.text,
         done: false,
         isDefault: true,
+        endCategoryId: event.endCategoryId,
+        isHoliday: event.isHoliday,
         tags: event.tags,
         parentId: event.parentId,
         leadWeeks: event.leadWeeks,
