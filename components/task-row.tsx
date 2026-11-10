@@ -3,6 +3,7 @@ import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
 import type { TaskBoardController } from "@/hooks/use-task-board";
+import { gmDateLabel } from "@/lib/calendar";
 import { isInterestPoll, socialPollId } from "@/lib/social-polls";
 import { SubtaskForm } from "./subtask-form";
 import { TaskDescription } from "./task-description";
@@ -40,6 +41,7 @@ export function TaskRow({
     ? undefined
     : findTask(board.state, socialPollId(task.id))?.task;
   const hasInterest = Boolean(childPoll?.interested);
+  const gmDate = task.tags?.includes("gm") ? gmDateLabel(categoryId) : null;
   const rowKey = `${task.id}:${categoryId}`;
   const descriptionId = `description-${task.id}-${categoryId}`;
   const editorId = `editor-${task.id}-${categoryId}`;
@@ -182,7 +184,8 @@ export function TaskRow({
         task.endCategoryId ||
         suggested ||
         showInterestToggle ||
-        hasInterest) && (
+        hasInterest ||
+        gmDate) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
           {suggested && (
             <span
@@ -208,6 +211,14 @@ export function TaskRow({
             >
               {task.interested ? "Interested ✓" : "Mark interest"}
             </button>
+          )}
+          {gmDate && (
+            <span
+              title="GM always happens on Wednesday"
+              className="rounded-full border border-zinc-300 bg-white px-2 py-0.5 text-[10px] font-medium tabular-nums text-zinc-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200"
+            >
+              {gmDate}
+            </span>
           )}
           {task.endCategoryId && (
             <span

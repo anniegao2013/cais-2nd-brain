@@ -14,6 +14,13 @@ const monthDay = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+const weekdayDate = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
 function toISODate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
@@ -73,4 +80,18 @@ export function timelineRangeLabel(): string {
     ? monthDay.format(start)
     : `${monthDay.format(start)}, ${start.getUTCFullYear()}`;
   return `${startLabel} – ${monthDay.format(end)}, ${end.getUTCFullYear()}`;
+}
+
+// GM events always happen on the Wednesday of the week they are listed under.
+export function weekWednesdayISO(categoryId: string): string | null {
+  const week = weekNumberFromCategoryId(categoryId);
+  if (week === null) return null;
+  const startMs = Date.parse(`${weekRange(week).startISO}T00:00:00Z`);
+  return toISODate(startMs + DAY_MS);
+}
+
+export function gmDateLabel(categoryId: string): string | null {
+  const iso = weekWednesdayISO(categoryId);
+  if (!iso) return null;
+  return weekdayDate.format(new Date(`${iso}T00:00:00Z`));
 }

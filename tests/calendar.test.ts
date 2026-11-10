@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   WEEK_COUNT,
   WEEK_ONE_START,
+  gmDateLabel,
   timelineRangeLabel,
   weekNumberFromCategoryId,
   weekRange,
   weekRangeLabel,
+  weekWednesdayISO,
 } from "../lib/calendar";
 
 describe("weekRange", () => {
@@ -66,5 +68,20 @@ describe("weekRangeLabel", () => {
 describe("timelineRangeLabel", () => {
   it("spans the whole week timeline", () => {
     expect(timelineRangeLabel()).toBe("Aug 25 – Dec 7, 2026");
+  });
+});
+
+describe("gmDateLabel", () => {
+  it("puts GM on the Wednesday of each week", () => {
+    expect(weekWednesdayISO("week-1")).toBe("2026-08-26");
+    expect(gmDateLabel("week-1")).toBe("Wed, Aug 26");
+    expect(gmDateLabel("week-10")).toBe("Wed, Oct 28");
+    expect(gmDateLabel("week-15")).toBe("Wed, Dec 2");
+  });
+
+  it("has no date for spring or summer", () => {
+    expect(weekWednesdayISO("spring")).toBeNull();
+    expect(gmDateLabel("spring")).toBeNull();
+    expect(gmDateLabel("summer")).toBeNull();
   });
 });
