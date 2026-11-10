@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allTasks,
   findTask,
+  overdueWeekOccurrences,
   spanLabel,
   spanLength,
   taskOccurrences,
@@ -73,6 +74,71 @@ describe("taskOccurrences", () => {
       ["backwards"],
     );
     expect(taskOccurrences(backwards, "week-2")).toEqual([]);
+  });
+});
+
+describe("overdueWeekOccurrences", () => {
+  it("carries incomplete tasks forward from earlier weeks", () => {
+    const state = makeState({
+      "week-1": [
+        makeTask("late"),
+        makeTask("finished", { done: true }),
+        makeTask("holiday", { isHoliday: true }),
+        makeTask("idea", { suggested: true }),
+      ],
+      "week-4": [makeTask("current")],
+    });
+
+    const overdue = overdueWeekOccurrences(state, "week-4");
+
+    expect(ids(overdue.map(({ task }) => task))).toEqual(["late"]);
+    expect(overdue[0]).toMatchObject({
+      startCategoryId: "week-1",
+      isStart: true,
+      isOverdue: true,
+    });
+  });
+
+  it("only carries tasks whose span ends before the current week", () => {
+    const state = makeState({
+      "week-2": [
+        makeTask("ended", { endCategoryId: "week-3" }),
+        makeTask("reaches-current", { endCategoryId: "week-4" }),
+        makeTask("spans-further", { endCategoryId: "week-6" }),
+      ],
+    });
+
+    expect(
+      ids(overdueWeekOccurrences(state, "week-4").map(({ task }) => task)),
+    ).toEqual(["ended"]);
+  });
+
+  it("does not carry subtasks of suggestions", () => {
+    const state = makeState({
+      "week-5": [makeTask("idea", { suggested: true })],
+      "week-1": [makeTask("poll", { parentId: "idea" })],
+    });
+
+    expect(overdueWeekOccurrences(state, "week-6")).toEqual([]);
+  });
+
+  it("does not pull in pre-semester tasks", () => {
+    const state = makeState({
+      spring: [makeTask("spring-task")],
+      summer: [makeTask("summer-task")],
+      "week-1": [makeTask("week-task")],
+    });
+
+    expect(
+      ids(overdueWeekOccurrences(state, "week-4").map(({ task }) => task)),
+    ).toEqual(["week-task"]);
+  });
+
+  it("returns nothing without a numbered current week", () => {
+    const state = makeState({ "week-1": [makeTask("late")] });
+
+    expect(overdueWeekOccurrences(state, "summer")).toEqual([]);
+    expect(overdueWeekOccurrences(state, "week-1")).toEqual([]);
   });
 });
 

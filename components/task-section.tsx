@@ -1,6 +1,6 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { weekRangeLabel } from "@/lib/calendar";
-import { taskOccurrences } from "@/lib/tasks";
+import { overdueWeekOccurrences, taskOccurrences } from "@/lib/tasks";
 import { AddTaskForm } from "./add-task-form";
 import { TaskRow } from "./task-row";
 
@@ -8,19 +8,37 @@ export function TaskSection({
   board,
   category,
   isCurrentWeek = false,
+  currentWeek = null,
 }: {
   board: TaskBoardController;
   category: { id: string; label: string };
   isCurrentWeek?: boolean;
+  currentWeek?: number | null;
 }) {
+  const currentWeekCategoryId =
+    currentWeek === null ? null : `week-${currentWeek}`;
+  const overdue = currentWeekCategoryId
+    ? overdueWeekOccurrences(board.state, currentWeekCategoryId)
+    : [];
+  const overdueIds = new Set(overdue.map(({ task }) => task.id));
   const occurrences = taskOccurrences(board.state, category.id).filter(
-    ({ task }) => board.matchesFilter(task),
+    ({ task }) => board.matchesFilter(task) && !overdueIds.has(task.id),
   );
-  if (board.activeTags.length > 0 && occurrences.length === 0) return null;
+  const overdueOccurrences = isCurrentWeek
+    ? overdue.filter(({ task }) => board.matchesFilter(task))
+    : [];
+  if (
+    board.activeTags.length > 0 &&
+    occurrences.length === 0 &&
+    overdueOccurrences.length === 0
+  ) {
+    return null;
+  }
 
-  const remaining = occurrences.filter(
-    ({ task }) => !task.done && !task.isHoliday,
-  ).length;
+  const remaining =
+    occurrences.filter(({ task }) => !task.done && !task.isHoliday).length +
+    overdueOccurrences.filter(({ task }) => !task.done && !task.isHoliday)
+      .length;
   const dateRange = weekRangeLabel(category.id);
 
   return (
@@ -64,6 +82,33 @@ export function TaskSection({
           {remaining} open
         </span>
       </div>
+
+      {overdueOccurrences.length > 0 && (
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
+              Overdue from earlier weeks
+            </h3>
+            <span className="text-xs tabular-nums text-red-600 dark:text-red-300">
+              {overdueOccurrences.length} task
+              {overdueOccurrences.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <ul className="mt-2 flex flex-col divide-y divide-red-200 border-y border-red-200 dark:divide-red-400/30 dark:border-red-400/30">
+            {overdueOccurrences.map(({ task, startCategoryId, isStart }) => (
+              <TaskRow
+                key={`${task.id}:overdue`}
+                board={board}
+                task={task}
+                startCategoryId={startCategoryId}
+                categoryId={category.id}
+                isStart={isStart}
+                isOverdue
+              />
+            ))}
+          </ul>
+        </div>
+      )}
 
       {occurrences.length > 0 && (
         <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">

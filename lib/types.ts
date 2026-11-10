@@ -35,6 +35,8 @@ export type TaskOccurrence = {
   task: Task;
   startCategoryId: string;
   isStart: boolean;
+  // An incomplete task carried forward from an earlier week.
+  isOverdue?: boolean;
 };
 
 export type TaskOption = {

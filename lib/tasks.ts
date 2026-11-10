@@ -1,4 +1,5 @@
 import { CATEGORIES, categoryIndex, sectionLabel } from "./categories";
+import { weekNumberFromCategoryId } from "./calendar";
 import type { AppState, Task, TaskOccurrence } from "./types";
 
 export function findTask(
@@ -32,6 +33,46 @@ export function taskOccurrences(
         task,
         startCategoryId: category.id,
         isStart: sectionIndex === startIndex,
+      });
+    }
+  }
+
+  return occurrences;
+}
+
+// Incomplete tasks from earlier weeks that no longer reach the current week
+// are carried forward for display in the current week. Their stored home stays
+// unchanged, so completing one returns it to its original week.
+export function overdueWeekOccurrences(
+  state: AppState,
+  currentWeekCategoryId: string,
+): TaskOccurrence[] {
+  const currentWeek = weekNumberFromCategoryId(currentWeekCategoryId);
+  if (currentWeek === null) return [];
+
+  const occurrences: TaskOccurrence[] = [];
+  for (const category of CATEGORIES) {
+    const week = weekNumberFromCategoryId(category.id);
+    if (week === null || week >= currentWeek) continue;
+
+    for (const task of state.tasks[category.id] ?? []) {
+      const parent = task.parentId
+        ? findTask(state, task.parentId)?.task
+        : undefined;
+      if (task.done || task.isHoliday || task.suggested || parent?.suggested) {
+        continue;
+      }
+
+      const endWeek = task.endCategoryId
+        ? weekNumberFromCategoryId(task.endCategoryId)
+        : week;
+      if ((endWeek ?? week) >= currentWeek) continue;
+
+      occurrences.push({
+        task,
+        startCategoryId: category.id,
+        isStart: true,
+        isOverdue: true,
       });
     }
   }
