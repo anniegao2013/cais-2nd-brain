@@ -1,4 +1,4 @@
-import { CATEGORIES, categoryIndex } from "@/lib/categories";
+import { CATEGORIES, categoryIndex, sectionLabel } from "@/lib/categories";
 import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
@@ -15,12 +15,14 @@ export function TaskRow({
   startCategoryId,
   categoryId,
   isStart,
+  isOverdue = false,
 }: {
   board: TaskBoardController;
   task: Task;
   startCategoryId: string;
   categoryId: string;
   isStart: boolean;
+  isOverdue?: boolean;
 }) {
   const parentLocation = task.parentId
     ? findTask(board.state, task.parentId)
@@ -37,6 +39,9 @@ export function TaskRow({
     : parent?.isHoliday
       ? "border-l-2 border-sky-300 bg-sky-50/40 dark:border-sky-400/40 dark:bg-sky-400/5"
       : "";
+  const overdueRow = isOverdue
+    ? "my-1 rounded-md border border-red-300 bg-red-50/60 px-2.5 dark:border-red-400/40 dark:bg-red-400/10"
+    : "";
   const parentMaxIndex = parentLocation
     ? categoryIndex(parentLocation.categoryId)
     : 0;
@@ -46,7 +51,9 @@ export function TaskRow({
     ? undefined
     : findTask(board.state, socialPollId(task.id))?.task;
   const hasInterest = Boolean(childPoll?.interested);
-  const gmDate = task.tags?.includes("gm") ? gmDateLabel(categoryId) : null;
+  const gmDate = task.tags?.includes("gm")
+    ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
+    : null;
   const rowKey = `${task.id}:${categoryId}`;
   const descriptionId = `description-${task.id}-${categoryId}`;
   const editorId = `editor-${task.id}-${categoryId}`;
@@ -77,7 +84,7 @@ export function TaskRow({
   return (
     <li
       id={`task-${task.id}-${categoryId}`}
-      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow}`}
+      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow} ${overdueRow}`}
     >
       <div className="group flex flex-wrap items-center gap-2">
         {task.isHoliday ? (
@@ -110,7 +117,9 @@ export function TaskRow({
             className={`size-4 shrink-0 ${
               suggested
                 ? "accent-amber-600 dark:accent-amber-400"
-                : "accent-zinc-900 dark:accent-zinc-100"
+                : isOverdue
+                  ? "accent-red-600 dark:accent-red-400"
+                  : "accent-zinc-900 dark:accent-zinc-100"
             }`}
           />
         )}
@@ -122,9 +131,11 @@ export function TaskRow({
           className={`flex flex-1 items-center text-left text-sm ${
             task.isHoliday
               ? "font-medium text-sky-900 dark:text-sky-200"
-              : task.done
-                ? "text-zinc-400 line-through dark:text-zinc-500"
-                : "text-zinc-700 dark:text-zinc-300"
+              : isOverdue
+                ? "font-medium text-red-800 dark:text-red-300"
+                : task.done
+                  ? "text-zinc-400 line-through dark:text-zinc-500"
+                  : "text-zinc-700 dark:text-zinc-300"
           }`}
         >
           <span className="min-w-0 flex-1">{task.text}</span>
@@ -214,8 +225,17 @@ export function TaskRow({
         showInterestToggle ||
         hasInterest ||
         gmDate ||
-        task.isHoliday) && (
+        task.isHoliday ||
+        isOverdue) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
+          {isOverdue && (
+            <span
+              title={`Originally scheduled in ${sectionLabel(startCategoryId)}`}
+              className="rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:border-red-400/60 dark:bg-red-400/15 dark:text-red-300"
+            >
+              Overdue · {sectionLabel(startCategoryId)}
+            </span>
+          )}
           {task.isHoliday && (
             <span
               title="Pulled from the USC academic calendar"

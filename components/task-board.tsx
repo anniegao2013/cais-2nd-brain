@@ -1,13 +1,53 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { useCurrentWeek } from "@/hooks/use-current-week";
 import { useTaskBoard } from "@/hooks/use-task-board";
-import { WEEK_COUNT, timelineRangeLabel } from "@/lib/calendar";
+import {
+  WEEK_COUNT,
+  timelineRangeLabel,
+  weekNumberFromCategoryId,
+} from "@/lib/calendar";
 import { CATEGORIES } from "@/lib/categories";
 import { TagFilter } from "./tag-filter";
 import { TaskSection } from "./task-section";
 
 export default function TaskBoard() {
   const board = useTaskBoard();
+  const currentWeek = useCurrentWeek();
+  const [showEarlierSections, setShowEarlierSections] = useState(false);
+  const hasAutoScrolled = useRef(false);
+  const previousShowEarlierSections = useRef(showEarlierSections);
+
+  const currentWeekIndex =
+    currentWeek === null
+      ? -1
+      : CATEGORIES.findIndex(
+          (category) => weekNumberFromCategoryId(category.id) === currentWeek,
+        );
+  const hiddenSectionCount = Math.max(0, currentWeekIndex);
+  const visibleCategories =
+    showEarlierSections || currentWeek === null
+      ? CATEGORIES
+      : CATEGORIES.slice(Math.max(0, currentWeekIndex));
+
+  // Land on the week the viewer is in instead of making them scroll past the
+  // earlier sections every time the board loads. Toggling the mask also moves
+  // the view to the new boundary.
+  useEffect(() => {
+    if (currentWeek === null) return;
+
+    const toggled = previousShowEarlierSections.current !== showEarlierSections;
+    previousShowEarlierSections.current = showEarlierSections;
+
+    if (!toggled && hasAutoScrolled.current) return;
+    hasAutoScrolled.current = true;
+
+    const target =
+      document.getElementById("past-sections-toggle") ??
+      document.getElementById(`week-${currentWeek}-section`);
+    target?.scrollIntoView({ block: "start" });
+  }, [currentWeek, showEarlierSections]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-12">
@@ -34,8 +74,42 @@ export default function TaskBoard() {
       <TagFilter board={board} />
 
       <div className="mt-10 flex flex-col gap-10">
-        {CATEGORIES.map((category) => (
-          <TaskSection key={category.id} board={board} category={category} />
+        {hiddenSectionCount > 0 && (
+          <div
+            id="past-sections-toggle"
+            className="flex scroll-mt-6 items-center gap-3"
+          >
+            <span
+              aria-hidden="true"
+              className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"
+            />
+            <button
+              type="button"
+              onClick={() => setShowEarlierSections((shown) => !shown)}
+              aria-expanded={showEarlierSections}
+              className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+            >
+              {showEarlierSections
+                ? "Hide earlier sections"
+                : `Show ${hiddenSectionCount} earlier ${
+                    hiddenSectionCount === 1 ? "section" : "sections"
+                  }`}
+            </button>
+            <span
+              aria-hidden="true"
+              className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"
+            />
+          </div>
+        )}
+
+        {visibleCategories.map((category) => (
+          <TaskSection
+            key={category.id}
+            board={board}
+            category={category}
+            isCurrentWeek={weekNumberFromCategoryId(category.id) === currentWeek}
+            currentWeek={currentWeek}
+          />
         ))}
         {board.activeTags.length > 0 && board.filteredTaskCount === 0 && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
