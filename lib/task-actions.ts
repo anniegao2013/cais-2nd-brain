@@ -263,6 +263,12 @@ export function toggleTaskDone(
   categoryId: string,
   taskId: string,
 ): AppState {
+  const target = (state.tasks[categoryId] ?? []).find(
+    (task) => task.id === taskId,
+  );
+  // USC holidays are calendar reference rows, not tasks, so they stay open.
+  if (!target || target.isHoliday) return state;
+
   return {
     ...state,
     tasks: {

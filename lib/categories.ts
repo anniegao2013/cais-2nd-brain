@@ -1,7 +1,9 @@
+import { WEEK_COUNT } from "./calendar";
+
 export const CATEGORIES = [
   { id: "spring", label: "Before end of spring semester" },
   { id: "summer", label: "Summer" },
-  ...Array.from({ length: 15 }, (_, index) => ({
+  ...Array.from({ length: WEEK_COUNT }, (_, index) => ({
     id: `week-${index + 1}`,
     label: `Week ${index + 1}`,
   })),

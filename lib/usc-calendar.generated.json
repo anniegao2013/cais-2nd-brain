@@ -1,0 +1,302 @@
+{
+  "source": "https://usc.edu/academic-calendar/",
+  "fetchedAt": "2026-11-10T06:42:27.065Z",
+  "semesters": [
+    {
+      "term": "fall",
+      "year": 2026,
+      "classesBeginISO": "2026-08-24",
+      "classesEndISO": "2026-12-04"
+    },
+    {
+      "term": "spring",
+      "year": 2027,
+      "classesBeginISO": "2027-01-11",
+      "classesEndISO": "2027-04-30"
+    },
+    {
+      "term": "summer",
+      "year": 2027,
+      "classesBeginISO": "2027-05-19",
+      "classesEndISO": "2027-08-10"
+    },
+    {
+      "term": "fall",
+      "year": 2027,
+      "classesBeginISO": "2027-08-23",
+      "classesEndISO": "2027-12-03"
+    },
+    {
+      "term": "spring",
+      "year": 2028,
+      "classesBeginISO": "2028-01-10",
+      "classesEndISO": "2028-04-28"
+    },
+    {
+      "term": "summer",
+      "year": 2028,
+      "classesBeginISO": "2028-05-17",
+      "classesEndISO": "2028-08-08"
+    },
+    {
+      "term": "fall",
+      "year": 2028,
+      "classesBeginISO": "2028-08-21",
+      "classesEndISO": "2028-12-01"
+    },
+    {
+      "term": "spring",
+      "year": 2029,
+      "classesBeginISO": "2029-01-08",
+      "classesEndISO": "2029-04-27"
+    },
+    {
+      "term": "summer",
+      "year": 2029,
+      "classesBeginISO": "2029-05-16",
+      "classesEndISO": "2029-08-07"
+    }
+  ],
+  "entries": [
+    {
+      "label": "Labor Day Holiday",
+      "term": "fall",
+      "semesterYear": 2026,
+      "days": "Mon",
+      "startISO": "2026-09-07",
+      "endISO": "2026-09-07"
+    },
+    {
+      "label": "Fall Recess",
+      "term": "fall",
+      "semesterYear": 2026,
+      "days": "Thu-Fri",
+      "startISO": "2026-10-08",
+      "endISO": "2026-10-09"
+    },
+    {
+      "label": "Veterans Day Holiday",
+      "term": "fall",
+      "semesterYear": 2026,
+      "days": "Wed",
+      "startISO": "2026-11-11",
+      "endISO": "2026-11-11"
+    },
+    {
+      "label": "Thanksgiving Holiday",
+      "term": "fall",
+      "semesterYear": 2026,
+      "days": "Wed-Sun",
+      "startISO": "2026-11-25",
+      "endISO": "2026-11-29"
+    },
+    {
+      "label": "Winter Recess",
+      "term": "fall",
+      "semesterYear": 2026,
+      "days": "Thu-Sun",
+      "startISO": "2026-12-17",
+      "endISO": "2027-01-10"
+    },
+    {
+      "label": "Martin Luther King Jr. Day Holiday",
+      "term": "spring",
+      "semesterYear": 2027,
+      "days": "Mon",
+      "startISO": "2027-01-18",
+      "endISO": "2027-01-18"
+    },
+    {
+      "label": "President’s Day Holiday",
+      "term": "spring",
+      "semesterYear": 2027,
+      "days": "Mon",
+      "startISO": "2027-02-15",
+      "endISO": "2027-02-15"
+    },
+    {
+      "label": "Spring Recess",
+      "term": "spring",
+      "semesterYear": 2027,
+      "days": "Sun-Sun",
+      "startISO": "2027-03-14",
+      "endISO": "2027-03-21"
+    },
+    {
+      "label": "Memorial Day Holiday",
+      "term": "summer",
+      "semesterYear": 2027,
+      "days": "Mon",
+      "startISO": "2027-05-31",
+      "endISO": "2027-05-31"
+    },
+    {
+      "label": "Independence Day Holiday",
+      "term": "summer",
+      "semesterYear": 2027,
+      "days": "Mon",
+      "startISO": "2027-07-04",
+      "endISO": "2027-07-05"
+    },
+    {
+      "label": "Labor Day Holiday",
+      "term": "fall",
+      "semesterYear": 2027,
+      "days": "Mon",
+      "startISO": "2027-09-06",
+      "endISO": "2027-09-06"
+    },
+    {
+      "label": "Fall Recess",
+      "term": "fall",
+      "semesterYear": 2027,
+      "days": "Thu-Fri",
+      "startISO": "2027-10-07",
+      "endISO": "2027-10-08"
+    },
+    {
+      "label": "Veterans Day Holiday",
+      "term": "fall",
+      "semesterYear": 2027,
+      "days": "Thu",
+      "startISO": "2027-11-11",
+      "endISO": "2027-11-11"
+    },
+    {
+      "label": "Thanksgiving Holiday",
+      "term": "fall",
+      "semesterYear": 2027,
+      "days": "Wed-Sun",
+      "startISO": "2027-11-24",
+      "endISO": "2027-11-28"
+    },
+    {
+      "label": "Winter Recess",
+      "term": "fall",
+      "semesterYear": 2027,
+      "days": "Thu-Sun",
+      "startISO": "2027-12-16",
+      "endISO": "2028-01-09"
+    },
+    {
+      "label": "Martin Luther King Jr. Day Holiday",
+      "term": "spring",
+      "semesterYear": 2028,
+      "days": "Mon",
+      "startISO": "2028-01-17",
+      "endISO": "2028-01-17"
+    },
+    {
+      "label": "President’s Day Holiday",
+      "term": "spring",
+      "semesterYear": 2028,
+      "days": "Mon",
+      "startISO": "2028-02-14",
+      "endISO": "2028-02-14"
+    },
+    {
+      "label": "Spring Recess",
+      "term": "spring",
+      "semesterYear": 2028,
+      "days": "Sun-Sun",
+      "startISO": "2028-03-12",
+      "endISO": "2028-03-19"
+    },
+    {
+      "label": "Memorial Day Holiday",
+      "term": "summer",
+      "semesterYear": 2028,
+      "days": "Mon",
+      "startISO": "2028-05-29",
+      "endISO": "2028-05-29"
+    },
+    {
+      "label": "Independence Day Holiday",
+      "term": "summer",
+      "semesterYear": 2028,
+      "days": "Mon",
+      "startISO": "2028-07-03",
+      "endISO": "2028-07-04"
+    },
+    {
+      "label": "Labor Day Holiday",
+      "term": "fall",
+      "semesterYear": 2028,
+      "days": "Mon",
+      "startISO": "2028-09-04",
+      "endISO": "2028-09-04"
+    },
+    {
+      "label": "Fall Recess",
+      "term": "fall",
+      "semesterYear": 2028,
+      "days": "Thu-Fri",
+      "startISO": "2028-10-05",
+      "endISO": "2028-10-06"
+    },
+    {
+      "label": "Veterans Day Holiday",
+      "term": "fall",
+      "semesterYear": 2028,
+      "days": "Sat",
+      "startISO": "2028-11-11",
+      "endISO": "2028-11-11"
+    },
+    {
+      "label": "Thanksgiving Holiday",
+      "term": "fall",
+      "semesterYear": 2028,
+      "days": "Wed-Sun",
+      "startISO": "2028-11-22",
+      "endISO": "2028-11-26"
+    },
+    {
+      "label": "Winter Recess",
+      "term": "fall",
+      "semesterYear": 2028,
+      "days": "Thu-Sun",
+      "startISO": "2028-12-14",
+      "endISO": "2029-01-07"
+    },
+    {
+      "label": "Martin Luther King Jr. Day Holiday",
+      "term": "spring",
+      "semesterYear": 2029,
+      "days": "Mon",
+      "startISO": "2029-01-15",
+      "endISO": "2029-01-15"
+    },
+    {
+      "label": "President’s Day Holiday",
+      "term": "spring",
+      "semesterYear": 2029,
+      "days": "Mon",
+      "startISO": "2029-02-19",
+      "endISO": "2029-02-19"
+    },
+    {
+      "label": "Spring Recess",
+      "term": "spring",
+      "semesterYear": 2029,
+      "days": "Sun-Sun",
+      "startISO": "2029-03-11",
+      "endISO": "2029-03-18"
+    },
+    {
+      "label": "Memorial Day Holiday",
+      "term": "summer",
+      "semesterYear": 2029,
+      "days": "Mon",
+      "startISO": "2029-05-28",
+      "endISO": "2029-05-28"
+    },
+    {
+      "label": "Independence Day Holiday",
+      "term": "summer",
+      "semesterYear": 2029,
+      "days": "Wed",
+      "startISO": "2029-07-04",
+      "endISO": "2029-07-04"
+    }
+  ]
+}

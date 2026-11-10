@@ -225,6 +225,98 @@ describe("normalizeStorage", () => {
     expect(ids(state.tasks["week-15"])).toContain("default-26");
   });
 
+  it("adds USC holidays to saves created before they were scraped", () => {
+    const olderDefaultIds = ALL_DEFAULT_IDS.filter(
+      (id) => !id.startsWith("usc-holiday-"),
+    );
+
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          spring: [{ id: "default-1", text: "Handoffs", done: false }],
+        },
+        removedDefaults: olderDefaultIds.filter((id) => id !== "default-1"),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(ids(state.tasks["week-3"])).toContain(
+      "usc-holiday-2026-09-07-labor-day-holiday",
+    );
+    expect(ids(state.tasks["week-7"])).toContain(
+      "usc-holiday-2026-10-08-fall-recess",
+    );
+    expect(ids(state.tasks["week-12"])).toContain(
+      "usc-holiday-2026-11-11-veterans-day-holiday",
+    );
+    expect(ids(state.tasks["week-14"])).toContain(
+      "usc-holiday-2026-11-25-thanksgiving-holiday",
+    );
+  });
+
+  it("backfills the holiday marker and clears an old completion", () => {
+    const holidayId = "usc-holiday-2026-09-07-labor-day-holiday";
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-3": [{ id: holidayId, text: "Labor Day Holiday", done: true }],
+        },
+        removedDefaults: removedExcept(holidayId),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    const holiday = findTask(state, holidayId);
+
+    expect(holiday?.task.isHoliday).toBe(true);
+    expect(holiday?.task.done).toBe(false);
+  });
+
+  it("moves a USC holiday to the week that contains its date", () => {
+    const holidayId = "usc-holiday-2026-09-07-labor-day-holiday";
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-2": [{ id: holidayId, text: "Labor Day Holiday", done: false }],
+          "week-3": [],
+        },
+        removedDefaults: removedExcept(holidayId),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(ids(state.tasks["week-2"])).not.toContain(holidayId);
+    expect(ids(state.tasks["week-3"])).toContain(holidayId);
+  });
+
+  it("leaves a deliberately moved non-holiday default where it is", () => {
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-5": [{ id: "default-1", text: "Handoffs", done: false }],
+        },
+        removedDefaults: removedExcept("default-1"),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(ids(state.tasks["week-5"])).toContain("default-1");
+    expect(ids(state.tasks.spring ?? [])).not.toContain("default-1");
+  });
+
+  it("keeps a USC holiday removed once it was deleted", () => {
+    const state = normalizeStorage(
+      stored({
+        tasks: {},
+        removedDefaults: ["usc-holiday-2026-09-07-labor-day-holiday"],
+      }),
+    );
+
+    expect(ids(state.tasks["week-3"])).not.toContain(
+      "usc-holiday-2026-09-07-labor-day-holiday",
+    );
+  });
+
   it("keeps a social suggestion removed once it was deleted", () => {
     const state = normalizeStorage(
       stored({

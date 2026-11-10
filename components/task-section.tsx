@@ -1,4 +1,5 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
+import { weekRangeLabel } from "@/lib/calendar";
 import { taskOccurrences } from "@/lib/tasks";
 import { AddTaskForm } from "./add-task-form";
 import { TaskRow } from "./task-row";
@@ -15,17 +16,27 @@ export function TaskSection({
   );
   if (board.activeTags.length > 0 && occurrences.length === 0) return null;
 
-  const remaining = occurrences.filter(({ task }) => !task.done).length;
+  const remaining = occurrences.filter(
+    ({ task }) => !task.done && !task.isHoliday,
+  ).length;
+  const dateRange = weekRangeLabel(category.id);
 
   return (
     <section aria-labelledby={`${category.id}-heading`}>
       <div className="flex items-baseline justify-between gap-4">
-        <h2
-          id={`${category.id}-heading`}
-          className="text-base font-medium text-zinc-900 dark:text-zinc-100"
-        >
-          {category.label}
-        </h2>
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <h2
+            id={`${category.id}-heading`}
+            className="text-base font-medium text-zinc-900 dark:text-zinc-100"
+          >
+            {category.label}
+          </h2>
+          {dateRange && (
+            <span className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+              {dateRange}
+            </span>
+          )}
+        </div>
         <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
           {remaining} open
         </span>

@@ -3,8 +3,12 @@
 A web app for keeping track of tasks and events.
 
 Tasks live under sequential sections: before the end of spring semester,
-summer, and weeks 1–15. A set of default tasks is pre-filled and can be moved
-to another section or deleted. Tasks can span multiple sections and are listed
+summer, and the numbered instructional weeks. Weeks are grounded in the USC
+academic calendar: Week 1 starts on Classes Begin, the last week ends on Classes
+End, and each week header shows its date range. The final week is shortened when
+Classes End falls before the end of that calendar week. A set of default tasks
+is pre-filled and can be moved to another section or deleted.
+Tasks can span multiple sections and are listed
 under every week they cover, with the range shown under the title. They can
 also have subtasks with editable lead times, plus descriptions that expand on
 click and render as nested bullet points. Expanding shows the description on
@@ -17,6 +21,12 @@ Default tasks and their starter ordering rules live in `lib/defaults.ts`; keep
 each entry's `id` stable since it is used to remember moves, deletions, and
 dependencies.
 
+Holidays and recesses from the USC academic calendar are mapped into the dated
+weeks as reference dates: they use their own styling and cannot be checked off.
+The scraper also records each semester's Classes Begin and Classes End dates,
+which ground the week numbering. Run it whenever the published calendar changes;
+it writes `lib/usc-calendar.generated.json`, which the app imports.
+
 ## Project structure
 
 | Path | Responsibility |
@@ -24,11 +34,15 @@ dependencies.
 | `app/` | Next.js routes and layout |
 | `components/` | Presentational UI, from the board down to a single task row |
 | `hooks/use-task-board.ts` | Client-side UI state and task actions |
-| `lib/` | Domain logic: categories, tags, defaults, ordering, placement, notes, storage, and task operations |
+| `lib/` | Domain logic: categories, calendar dates, tags, defaults, ordering, placement, notes, storage, scraping, and task operations |
+| `scripts/` | Runnable maintenance scripts, including the USC calendar scraper |
 | `tests/` | Vitest suites for the pure logic in `lib/` |
 
 Within `lib/`, `types.ts` defines the shared models; `defaults.ts` seeds the
-board; `categories.ts` and `tags.ts` hold the constants; `dependencies.ts` and
+board; `categories.ts`, `calendar.ts`, and `tags.ts` hold the constants and week
+dates; `usc-calendar.ts` parses the published academic calendar and
+`usc-holidays.ts` maps its holiday and recess rows onto the timeline;
+`dependencies.ts` and
 `dependency-actions.ts` handle ordering; `placement.ts` and `span-actions.ts`
 handle moves and spans; `tasks.ts` derives occurrences; `notes.ts` parses
 descriptions; `task-actions.ts` mutates tasks; and `storage.ts` persists
@@ -47,7 +61,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Logic tests use [Vitest](https://vitest.dev/) and live in `tests/`. They cover
 ordering, spans, subtask placement, validation, storage migration, notes, tags,
-and the seeded defaults.
+the seeded defaults, and academic-calendar parsing.
 
 ```bash
 npm test          # run once
@@ -69,5 +83,6 @@ npm run test:watch
 | `npm run build` | Build for production |
 | `npm start` | Run the production build |
 | `npm run lint` | Lint the codebase |
+| `npm run scrape:usc` | Refresh holiday and recess data from the USC academic calendar |
 | `npm test` | Run the unit tests once |
 | `npm run test:watch` | Run the unit tests in watch mode |
