@@ -4,11 +4,15 @@ import {
   categoryIdForDate,
 } from "./calendar";
 import generated from "./usc-calendar.generated.json";
-import type { UscCalendarEntry } from "./usc-calendar";
+import type {
+  UscCalendarEntry,
+  UscSemesterBoundary,
+} from "./usc-calendar";
 
 type GeneratedCalendar = {
   source: string;
   fetchedAt: string;
+  semesters: UscSemesterBoundary[];
   entries: UscCalendarEntry[];
 };
 
@@ -16,6 +20,7 @@ const calendar = generated as unknown as GeneratedCalendar;
 
 export const USC_CALENDAR_SOURCE = calendar.source;
 export const USC_CALENDAR_FETCHED_AT = calendar.fetchedAt;
+export const USC_CALENDAR_SEMESTERS = calendar.semesters;
 export const USC_CALENDAR_ENTRIES = calendar.entries;
 
 export type TimelineHoliday = {
@@ -39,9 +44,9 @@ function holidayId(entry: UscCalendarEntry): string {
   return `usc-holiday-${entry.startISO}-${slugify(entry.label)}`;
 }
 
-// Holidays and recesses that overlap the dated week timeline. Dates outside
-// Week 1 through Week 15 (for example, winter recess) are left out because the
-// board has no dated section for them.
+// Holidays and recesses that overlap the dated instructional timeline. Dates
+// outside Classes Begin through Classes End (for example, winter recess) are
+// left out because the board has no dated section for them.
 export function timelineHolidays(
   entries: UscCalendarEntry[] = USC_CALENDAR_ENTRIES,
 ): TimelineHoliday[] {

@@ -1,5 +1,6 @@
-// Fetches the USC academic calendar and writes the holiday/recess rows to a
-// generated JSON file that the app imports. Run with `npm run scrape:usc`.
+// Fetches the USC academic calendar and writes the instructional spans and
+// holiday/recess rows to a generated JSON file that the app imports. Run with
+// `npm run scrape:usc`.
 //
 // Use `npm run scrape:usc -- --input path/to/page.html` to parse a saved copy
 // of the page instead of making a network request.
@@ -7,12 +8,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  TIMELINE_END_ISO,
-  TIMELINE_START_ISO,
-  categoryIdForDate,
-} from "../lib/calendar";
-import { parseUscAcademicCalendar } from "../lib/usc-calendar";
+import { parseUscAcademicCalendarPage } from "../lib/usc-calendar";
 
 const SOURCE_URL = "https://usc.edu/academic-calendar/";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -48,39 +44,42 @@ async function loadHtml(): Promise<{ html: string; from: string }> {
 
 async function main(): Promise<void> {
   const { html, from } = await loadHtml();
-  const entries = parseUscAcademicCalendar(html);
+  const { entries, semesters } = parseUscAcademicCalendarPage(html);
 
   if (entries.length === 0) {
     throw new Error(
       `No holiday or recess rows found in ${from}. The page layout may have changed.`,
     );
   }
+  if (semesters.length === 0) {
+    throw new Error(
+      `No Classes Begin/Classes End spans found in ${from}. The page layout may have changed.`,
+    );
+  }
 
   const payload = {
     source: SOURCE_URL,
     fetchedAt: new Date().toISOString(),
+    semesters,
     entries,
   };
   await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 
-  const timeline = entries.filter(
-    (entry) =>
-      entry.endISO >= TIMELINE_START_ISO &&
-      entry.startISO <= TIMELINE_END_ISO,
-  );
   console.log(
-    `Read ${entries.length} holiday/recess rows from ${from} and wrote ${path.relative(
-      process.cwd(),
-      outputPath,
-    )}.`,
+    `Read ${entries.length} holiday/recess rows and ${semesters.length} semester spans from ${from}.`,
   );
-  console.log(`On the dated timeline (${timeline.length}):`);
-  for (const holiday of timeline) {
-    const section =
-      categoryIdForDate(holiday.startISO) ??
-      categoryIdForDate(TIMELINE_START_ISO) ??
-      "timeline";
-    console.log(`  ${holiday.startISO}  ${holiday.label}  [${section}]`);
+  console.log(`Wrote ${path.relative(process.cwd(), outputPath)}.`);
+  console.log("Instructional spans:");
+  for (const semester of semesters) {
+    console.log(
+      `  ${semester.term} ${semester.year}: ${semester.classesBeginISO} to ${semester.classesEndISO}`,
+    );
+  }
+  console.log("Holiday/recess rows:");
+  for (const holiday of entries) {
+    console.log(
+      `  ${holiday.startISO}  ${holiday.label}  [${holiday.term} ${holiday.semesterYear}]`,
+    );
   }
 }
 

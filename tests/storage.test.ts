@@ -240,7 +240,7 @@ describe("normalizeStorage", () => {
       }),
     );
 
-    expect(ids(state.tasks["week-2"])).toContain(
+    expect(ids(state.tasks["week-3"])).toContain(
       "usc-holiday-2026-09-07-labor-day-holiday",
     );
     expect(ids(state.tasks["week-7"])).toContain(
@@ -259,7 +259,7 @@ describe("normalizeStorage", () => {
     const state = normalizeStorage(
       stored({
         tasks: {
-          "week-2": [{ id: holidayId, text: "Labor Day Holiday", done: true }],
+          "week-3": [{ id: holidayId, text: "Labor Day Holiday", done: true }],
         },
         removedDefaults: removedExcept(holidayId),
         dependencies: DEFAULT_DEPENDENCIES,
@@ -272,6 +272,38 @@ describe("normalizeStorage", () => {
     expect(holiday?.task.done).toBe(false);
   });
 
+  it("moves a USC holiday to the week that contains its date", () => {
+    const holidayId = "usc-holiday-2026-09-07-labor-day-holiday";
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-2": [{ id: holidayId, text: "Labor Day Holiday", done: false }],
+          "week-3": [],
+        },
+        removedDefaults: removedExcept(holidayId),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(ids(state.tasks["week-2"])).not.toContain(holidayId);
+    expect(ids(state.tasks["week-3"])).toContain(holidayId);
+  });
+
+  it("leaves a deliberately moved non-holiday default where it is", () => {
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-5": [{ id: "default-1", text: "Handoffs", done: false }],
+        },
+        removedDefaults: removedExcept("default-1"),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(ids(state.tasks["week-5"])).toContain("default-1");
+    expect(ids(state.tasks.spring ?? [])).not.toContain("default-1");
+  });
+
   it("keeps a USC holiday removed once it was deleted", () => {
     const state = normalizeStorage(
       stored({
@@ -280,7 +312,7 @@ describe("normalizeStorage", () => {
       }),
     );
 
-    expect(ids(state.tasks["week-2"])).not.toContain(
+    expect(ids(state.tasks["week-3"])).not.toContain(
       "usc-holiday-2026-09-07-labor-day-holiday",
     );
   });

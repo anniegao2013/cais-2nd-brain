@@ -9,6 +9,7 @@ import { DEFAULT_EVENTS, DEFAULT_STATE } from "../lib/defaults";
 import { findTask } from "../lib/tasks";
 import {
   parseUscAcademicCalendar,
+  parseUscAcademicCalendarPage,
   type UscCalendarEntry,
 } from "../lib/usc-calendar";
 import {
@@ -28,6 +29,11 @@ const PAGE = `
           <td><strong>Open Registration</strong></td>
           <td>Mon-Fri</td>
           <td>August 17-21</td>
+        </tr>
+        <tr>
+          <td><strong>Classes Begin</strong></td>
+          <td>Mon</td>
+          <td>August 24</td>
         </tr>
         <tr>
           <td><strong>Labor Day Holiday</strong></td>
@@ -50,6 +56,11 @@ const PAGE = `
           <td>November 25-29</td>
         </tr>
         <tr>
+          <td><strong>Classes End</strong></td>
+          <td>Fri</td>
+          <td>December 4</td>
+        </tr>
+        <tr>
           <td><strong>Winter Recess</strong></td>
           <td>Thu-Sun</td>
           <td>December 17-January 10<br /><em>*Winter Holiday for Graduate Student Workers: 12/25/26-01/01/27</em></td>
@@ -65,6 +76,11 @@ const PAGE = `
     <table>
       <tbody>
         <tr>
+          <td><strong>Classes Begin</strong></td>
+          <td>Mon</td>
+          <td>January 11</td>
+        </tr>
+        <tr>
           <td><strong>Martin Luther King Jr. Day Holiday</strong></td>
           <td>Mon</td>
           <td>January 18</td>
@@ -78,6 +94,11 @@ const PAGE = `
           <td><strong>Juneteenth</strong></td>
           <td>Sat</td>
           <td>June 19</td>
+        </tr>
+        <tr>
+          <td><strong>Classes End</strong></td>
+          <td>Fri</td>
+          <td>April 30</td>
         </tr>
       </tbody>
     </table>
@@ -165,17 +186,49 @@ describe("parseUscAcademicCalendar", () => {
   });
 });
 
+describe("parseUscAcademicCalendarPage", () => {
+  const page = parseUscAcademicCalendarPage(PAGE);
+
+  it("reads Classes Begin and Classes End for each semester", () => {
+    expect(page.semesters).toEqual([
+      {
+        term: "fall",
+        year: 2026,
+        classesBeginISO: "2026-08-24",
+        classesEndISO: "2026-12-04",
+      },
+      {
+        term: "spring",
+        year: 2027,
+        classesBeginISO: "2027-01-11",
+        classesEndISO: "2027-04-30",
+      },
+    ]);
+  });
+
+  it("keeps instructional rows out of the holiday list", () => {
+    expect(
+      page.entries.some((entry) => entry.label === "Classes Begin"),
+    ).toBe(false);
+    expect(page.entries.some((entry) => entry.label === "Classes End")).toBe(
+      false,
+    );
+  });
+});
+
 describe("date to week mapping", () => {
   it("maps dates onto the week blocks", () => {
-    expect(weekNumberForDate("2026-08-25")).toBe(1);
-    expect(weekNumberForDate("2026-09-07")).toBe(2);
-    expect(weekNumberForDate("2026-12-07")).toBe(15);
+    expect(weekNumberForDate("2026-08-24")).toBe(1);
+    expect(weekNumberForDate("2026-08-30")).toBe(1);
+    expect(weekNumberForDate("2026-08-31")).toBe(2);
+    expect(weekNumberForDate("2026-09-07")).toBe(3);
+    expect(weekNumberForDate("2026-12-04")).toBe(15);
     expect(categoryIdForDate("2026-10-08")).toBe("week-7");
   });
 
   it("ignores dates outside the timeline or invalid input", () => {
-    expect(categoryIdForDate("2026-08-24")).toBeNull();
-    expect(categoryIdForDate("2026-12-08")).toBeNull();
+    expect(categoryIdForDate("2026-08-23")).toBeNull();
+    expect(categoryIdForDate("2026-12-05")).toBeNull();
     expect(categoryIdForDate("not-a-date")).toBeNull();
   });
 });
@@ -227,7 +280,7 @@ describe("scraped USC holidays in the default board", () => {
     {
       id: "usc-holiday-2026-09-07-labor-day-holiday",
       label: "Labor Day Holiday",
-      category: "week-2",
+      category: "week-3",
     },
     {
       id: "usc-holiday-2026-10-08-fall-recess",
@@ -266,7 +319,7 @@ describe("scraped USC holidays in the default board", () => {
     expect(found?.categoryId).toBe(category);
   });
 
-  it("leaves out holidays after Week 15", () => {
+  it("leaves out holidays after Classes End", () => {
     expect(DEFAULT_EVENTS.some((event) => event.text === "Winter Recess")).toBe(
       false,
     );
@@ -277,8 +330,8 @@ describe("scraped USC holidays in the default board", () => {
     ).toBe(false);
   });
 
-  it("uses the dated timeline range", () => {
-    expect(TIMELINE_START_ISO).toBe("2026-08-25");
-    expect(TIMELINE_END_ISO).toBe("2026-12-07");
+  it("uses the scraped instructional range", () => {
+    expect(TIMELINE_START_ISO).toBe("2026-08-24");
+    expect(TIMELINE_END_ISO).toBe("2026-12-04");
   });
 });

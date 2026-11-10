@@ -1,6 +1,7 @@
-// Parser for the USC academic calendar page. It reads the published HTML and
-// returns only rows whose label mentions a holiday or recess. Keeping this pure
-// makes the scraper easy to test against a saved copy of the page.
+// Parser for the USC academic calendar page. It reads the published HTML,
+// extracts the instructional span (Classes Begin through Classes End), and
+// returns only holiday/recess rows. Keeping this pure makes the scraper easy to
+// test against a saved copy of the page.
 
 export type UscSemesterTerm = "fall" | "spring" | "summer";
 
@@ -11,6 +12,18 @@ export type UscCalendarEntry = {
   days: string;
   startISO: string;
   endISO: string;
+};
+
+export type UscSemesterBoundary = {
+  term: UscSemesterTerm;
+  year: number;
+  classesBeginISO: string;
+  classesEndISO: string;
+};
+
+export type UscAcademicCalendarPage = {
+  entries: UscCalendarEntry[];
+  semesters: UscSemesterBoundary[];
 };
 
 const MONTHS: Record<string, number> = {
@@ -45,6 +58,8 @@ const MONTH_SOURCE = Object.keys(MONTHS)
   .join("|");
 
 const HOLIDAY_LABEL = /holiday|recess/i;
+const CLASSES_BEGIN_LABEL = /^classes begin$/i;
+const CLASSES_END_LABEL = /^classes end$/i;
 
 const BLOCK_RE =
   /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1\s*>|<table\b[^>]*>([\s\S]*?)<\/table\s*>/gi;
@@ -146,68 +161,130 @@ function parseDateRange(
   return { startISO, endISO };
 }
 
-function parseTable(
-  tableHtml: string,
-  semester: { term: UscSemesterTerm; year: number },
-): UscCalendarEntry[] {
-  const entries: UscCalendarEntry[] = [];
-  const rows = tableHtml.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr\s*>/gi);
+type ParsedRow = {
+  label: string;
+  days: string;
+  dates: ParsedDates;
+};
 
-  for (const row of rows) {
+function parseTableRows(
+  tableHtml: string,
+  semesterYear: number,
+): ParsedRow[] {
+  const rows: ParsedRow[] = [];
+  const matches = tableHtml.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr\s*>/gi);
+
+  for (const row of matches) {
     const cells = [
       ...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]\s*>/gi),
     ].map((cell) => cell[1]);
     if (cells.length < 3) continue;
 
-    const label = textFromHtml(cells[0]);
-    if (!HOLIDAY_LABEL.test(label)) continue;
-
     // Only the first line of the date cell is the actual date range.
     const dateLine = cells[2].split(/<br\s*\/?>/i)[0];
-    const dates = parseDateRange(textFromHtml(dateLine), semester.year);
+    const dates = parseDateRange(textFromHtml(dateLine), semesterYear);
     if (!dates) continue;
 
-    entries.push({
-      label,
-      term: semester.term,
-      semesterYear: semester.year,
+    rows.push({
+      label: textFromHtml(cells[0]),
       days: textFromHtml(cells[1]),
-      ...dates,
+      dates,
     });
   }
 
-  return entries;
+  return rows;
 }
 
-export function parseUscAcademicCalendar(html: string): UscCalendarEntry[] {
+type SemesterAccumulator = {
+  term: UscSemesterTerm;
+  year: number;
+  classesBeginISO?: string;
+  classesEndISO?: string;
+};
+
+function pushSemester(
+  active: SemesterAccumulator | null,
+  semesters: UscSemesterBoundary[],
+  seen: Set<string>,
+): void {
+  if (!active?.classesBeginISO || !active.classesEndISO) return;
+
+  const key = `${active.term}-${active.year}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  semesters.push({
+    term: active.term,
+    year: active.year,
+    classesBeginISO: active.classesBeginISO,
+    classesEndISO: active.classesEndISO,
+  });
+}
+
+export function parseUscAcademicCalendarPage(
+  html: string,
+): UscAcademicCalendarPage {
   const entries: UscCalendarEntry[] = [];
-  const seen = new Set<string>();
-  let semester: { term: UscSemesterTerm; year: number } | null = null;
+  const semesters: UscSemesterBoundary[] = [];
+  const seenEntries = new Set<string>();
+  const seenSemesters = new Set<string>();
+  let active: SemesterAccumulator | null = null;
 
   for (const block of html.matchAll(BLOCK_RE)) {
     if (block[1]) {
       const heading = textFromHtml(block[2]);
       if (!heading) continue;
-      const parsed = parseSemesterHeading(heading);
+
+      pushSemester(active, semesters, seenSemesters);
       // A real heading that is not a semester marks the end of the calendar
       // section. Empty headings directly after a semester title are ignored.
-      semester = parsed;
+      const parsed = parseSemesterHeading(heading);
+      active = parsed ? { ...parsed } : null;
       continue;
     }
 
-    if (!semester || !block[3]) continue;
+    if (!active || !block[3]) continue;
 
-    for (const entry of parseTable(block[3], semester)) {
-      const key = `${entry.label.toLowerCase()}|${entry.startISO}|${entry.endISO}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      entries.push(entry);
+    for (const row of parseTableRows(block[3], active.year)) {
+      if (CLASSES_BEGIN_LABEL.test(row.label)) {
+        active.classesBeginISO = row.dates.startISO;
+        continue;
+      }
+      if (CLASSES_END_LABEL.test(row.label)) {
+        active.classesEndISO = row.dates.endISO;
+        continue;
+      }
+      if (!HOLIDAY_LABEL.test(row.label)) continue;
+
+      const key = `${row.label.toLowerCase()}|${row.dates.startISO}|${row.dates.endISO}`;
+      if (seenEntries.has(key)) continue;
+      seenEntries.add(key);
+      entries.push({
+        label: row.label,
+        term: active.term,
+        semesterYear: active.year,
+        days: row.days,
+        ...row.dates,
+      });
     }
   }
 
-  return entries.sort(
-    (left, right) =>
-      left.startISO.localeCompare(right.startISO) ||
-      left.label.localeCompare(right.label),
-  );
+  pushSemester(active, semesters, seenSemesters);
+
+  return {
+    entries: entries.sort(
+      (left, right) =>
+        left.startISO.localeCompare(right.startISO) ||
+        left.label.localeCompare(right.label),
+    ),
+    semesters: semesters.sort(
+      (left, right) =>
+        left.classesBeginISO.localeCompare(right.classesBeginISO) ||
+        left.term.localeCompare(right.term) ||
+        left.year - right.year,
+    ),
+  };
+}
+
+export function parseUscAcademicCalendar(html: string): UscCalendarEntry[] {
+  return parseUscAcademicCalendarPage(html).entries;
 }

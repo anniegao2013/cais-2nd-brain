@@ -1,6 +1,62 @@
 {
   "source": "https://usc.edu/academic-calendar/",
-  "fetchedAt": "2026-11-10T06:30:34.247Z",
+  "fetchedAt": "2026-11-10T06:42:27.065Z",
+  "semesters": [
+    {
+      "term": "fall",
+      "year": 2026,
+      "classesBeginISO": "2026-08-24",
+      "classesEndISO": "2026-12-04"
+    },
+    {
+      "term": "spring",
+      "year": 2027,
+      "classesBeginISO": "2027-01-11",
+      "classesEndISO": "2027-04-30"
+    },
+    {
+      "term": "summer",
+      "year": 2027,
+      "classesBeginISO": "2027-05-19",
+      "classesEndISO": "2027-08-10"
+    },
+    {
+      "term": "fall",
+      "year": 2027,
+      "classesBeginISO": "2027-08-23",
+      "classesEndISO": "2027-12-03"
+    },
+    {
+      "term": "spring",
+      "year": 2028,
+      "classesBeginISO": "2028-01-10",
+      "classesEndISO": "2028-04-28"
+    },
+    {
+      "term": "summer",
+      "year": 2028,
+      "classesBeginISO": "2028-05-17",
+      "classesEndISO": "2028-08-08"
+    },
+    {
+      "term": "fall",
+      "year": 2028,
+      "classesBeginISO": "2028-08-21",
+      "classesEndISO": "2028-12-01"
+    },
+    {
+      "term": "spring",
+      "year": 2029,
+      "classesBeginISO": "2029-01-08",
+      "classesEndISO": "2029-04-27"
+    },
+    {
+      "term": "summer",
+      "year": 2029,
+      "classesBeginISO": "2029-05-16",
+      "classesEndISO": "2029-08-07"
+    }
+  ],
   "entries": [
     {
       "label": "Labor Day Holiday",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTaskBoard } from "@/hooks/use-task-board";
-import { timelineRangeLabel } from "@/lib/calendar";
+import { WEEK_COUNT, timelineRangeLabel } from "@/lib/calendar";
 import { CATEGORIES } from "@/lib/categories";
 import { TagFilter } from "./tag-filter";
 import { TaskSection } from "./task-section";
@@ -15,7 +15,7 @@ export default function TaskBoard() {
         Categories
       </h1>
       <p className="mt-1 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
-        Weeks 1–15 run {timelineRangeLabel()}.
+        Weeks 1–{WEEK_COUNT} run {timelineRangeLabel()}.
       </p>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         Add tasks under the part of the year they belong to. Default events are

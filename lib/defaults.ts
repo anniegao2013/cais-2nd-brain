@@ -121,7 +121,7 @@ const BASE_DEFAULT_EVENTS: DefaultEvent[] = [
 ];
 
 // USC holidays and recesses are scraped from the academic calendar. Only the
-// ones that overlap Weeks 1–15 make it onto this board.
+// ones that overlap the instructional weeks make it onto this board.
 const USC_HOLIDAY_EVENTS: DefaultEvent[] = USC_TIMELINE_HOLIDAYS.map(
   (holiday) => ({
     id: holiday.id,

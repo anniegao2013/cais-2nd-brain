@@ -3,9 +3,11 @@
 A web app for keeping track of tasks and events.
 
 Tasks live under sequential sections: before the end of spring semester,
-summer, and weeks 1–15. Weeks are anchored to a real calendar: Week 1 starts
-August 25, 2026, and each week header shows its seven-day date range. A set of
-default tasks is pre-filled and can be moved to another section or deleted.
+summer, and the numbered instructional weeks. Weeks are grounded in the USC
+academic calendar: Week 1 starts on Classes Begin, the last week ends on Classes
+End, and each week header shows its date range. The final week is shortened when
+Classes End falls before the end of that calendar week. A set of default tasks
+is pre-filled and can be moved to another section or deleted.
 Tasks can span multiple sections and are listed
 under every week they cover, with the range shown under the title. They can
 also have subtasks with editable lead times, plus descriptions that expand on
@@ -21,8 +23,9 @@ dependencies.
 
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.
-Run the scraper whenever the published calendar changes; it writes
-`lib/usc-calendar.generated.json`, which the app imports.
+The scraper also records each semester's Classes Begin and Classes End dates,
+which ground the week numbering. Run it whenever the published calendar changes;
+it writes `lib/usc-calendar.generated.json`, which the app imports.
 
 ## Project structure
 

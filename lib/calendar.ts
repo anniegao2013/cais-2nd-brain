@@ -1,12 +1,47 @@
-// The timeline is anchored to a real calendar. Week 1 starts on this date and
-// each following week is a seven-day block, so labels stay stable regardless
-// of the viewer's timezone.
-export const WEEK_ONE_START = "2026-08-25";
-export const WEEK_COUNT = 15;
+// The timeline is grounded in the USC academic calendar: Week 1 begins on
+// Classes Begin and the final week ends on Classes End. The scraped semester
+// span is committed in usc-calendar.generated.json so the board stays stable
+// between scraper runs.
+import generated from "./usc-calendar.generated.json";
+import type { UscSemesterBoundary, UscSemesterTerm } from "./usc-calendar";
+
+type GeneratedCalendar = { semesters: UscSemesterBoundary[] };
+
+export const BOARD_TERM: UscSemesterTerm = "fall";
+export const BOARD_YEAR = 2026;
+
+const calendar = generated as unknown as GeneratedCalendar;
+const boardSemester = calendar.semesters.find(
+  (semester) =>
+    semester.term === BOARD_TERM && semester.year === BOARD_YEAR,
+);
+
+if (!boardSemester) {
+  throw new Error(
+    "Missing the Fall 2026 Classes Begin/Classes End span. Run `npm run scrape:usc`.",
+  );
+}
+
+export const CLASSES_BEGIN_ISO = boardSemester.classesBeginISO;
+export const CLASSES_END_ISO = boardSemester.classesEndISO;
+export const WEEK_ONE_START = CLASSES_BEGIN_ISO;
+export const TIMELINE_START_ISO = CLASSES_BEGIN_ISO;
+export const TIMELINE_END_ISO = CLASSES_END_ISO;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = DAY_MS * 7;
-const WEEK_ONE_START_MS = Date.parse(`${WEEK_ONE_START}T00:00:00Z`);
+const WEEK_ONE_START_MS = Date.parse(`${CLASSES_BEGIN_ISO}T00:00:00Z`);
+const CLASSES_END_MS = Date.parse(`${CLASSES_END_ISO}T00:00:00Z`);
+
+if (CLASSES_END_MS < WEEK_ONE_START_MS) {
+  throw new Error("Classes End cannot be before Classes Begin.");
+}
+
+// The final week can be shorter than seven days when Classes End falls before
+// the end of that calendar week.
+const INCLUSIVE_DAY_COUNT =
+  Math.round((CLASSES_END_MS - WEEK_ONE_START_MS) / DAY_MS) + 1;
+export const WEEK_COUNT = Math.ceil(INCLUSIVE_DAY_COUNT / 7);
 
 const monthDay = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -54,7 +89,7 @@ export function weekNumberFromCategoryId(categoryId: string): number | null {
 
 export function weekRange(week: number): WeekRange {
   const startMs = WEEK_ONE_START_MS + (week - 1) * WEEK_MS;
-  const endMs = startMs + WEEK_MS - DAY_MS;
+  const endMs = Math.min(startMs + WEEK_MS - DAY_MS, CLASSES_END_MS);
   return {
     week,
     startISO: toISODate(startMs),
@@ -63,16 +98,13 @@ export function weekRange(week: number): WeekRange {
   };
 }
 
-export const TIMELINE_START_ISO = WEEK_ONE_START;
-export const TIMELINE_END_ISO = weekRange(WEEK_COUNT).endISO;
-
 // Maps a real calendar date to the numbered week that contains it.
 export function weekNumberForDate(iso: string): number | null {
   const ms = Date.parse(`${iso}T00:00:00Z`);
   if (Number.isNaN(ms)) return null;
 
   const offset = ms - WEEK_ONE_START_MS;
-  if (offset < 0 || offset >= WEEK_COUNT * WEEK_MS) return null;
+  if (offset < 0 || ms > CLASSES_END_MS) return null;
   return Math.floor(offset / WEEK_MS) + 1;
 }
 
@@ -104,8 +136,11 @@ export function timelineRangeLabel(): string {
 export function weekWednesdayISO(categoryId: string): string | null {
   const week = weekNumberFromCategoryId(categoryId);
   if (week === null) return null;
-  const startMs = Date.parse(`${weekRange(week).startISO}T00:00:00Z`);
-  return toISODate(startMs + DAY_MS);
+
+  const startMs = WEEK_ONE_START_MS + (week - 1) * WEEK_MS;
+  const startDay = new Date(startMs).getUTCDay();
+  const daysUntilWednesday = (3 - startDay + 7) % 7;
+  return toISODate(startMs + daysUntilWednesday * DAY_MS);
 }
 
 export function gmDateLabel(categoryId: string): string | null {

@@ -81,6 +81,28 @@ export function normalizeStorage(raw: string): AppState {
       : [];
   }
 
+  // USC holidays are tied to real dates. If an older save placed one in a
+  // different week (for example, before the week numbering was grounded in
+  // Classes Begin), move it to the section that contains its date.
+  const relocatedHolidays: Task[] = [];
+  for (const [categoryId, list] of Object.entries(cleaned)) {
+    const stay: Task[] = [];
+    for (const task of list) {
+      const seed = DEFAULT_BY_ID.get(task.id);
+      if (seed?.isHoliday && seed.category !== categoryId) {
+        relocatedHolidays.push(task);
+        continue;
+      }
+      stay.push(task);
+    }
+    cleaned[categoryId] = stay;
+  }
+  for (const task of relocatedHolidays) {
+    const categoryId = DEFAULT_BY_ID.get(task.id)?.category;
+    if (!categoryId) continue;
+    cleaned[categoryId] = [...(cleaned[categoryId] ?? []), task];
+  }
+
   // Default events always exist unless they were deliberately removed.
   const presentIds = new Set(
     Object.values(cleaned).flatMap((list) => list.map((task) => task.id)),
