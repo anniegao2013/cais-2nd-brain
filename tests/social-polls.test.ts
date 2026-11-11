@@ -1,28 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { categoryIndex } from "../lib/categories";
 import {
+  ANNOUNCE_LEAD_WEEKS,
   ANNOUNCE_TEXT,
-  START_PLANNING_TEXT,
+  SOCIAL_FOLLOW_UPS,
   SOCIAL_POLL_LEAD_WEEKS,
   SOCIAL_POLL_TEXT,
+  START_PLANNING_LEAD_WEEKS,
+  START_PLANNING_TEXT,
   announceId,
   socialPollId,
   startPlanningId,
-  syncInterestFollowUps,
-  syncSocialPollSubtasks,
+  syncSocialFollowUps,
   togglePollInterest,
 } from "../lib/social-polls";
 import { findTask } from "../lib/tasks";
 import { makeState, makeTask } from "./helpers";
 
-describe("syncSocialPollSubtasks", () => {
-  it("adds a poll four sections before a social event", () => {
+describe("syncSocialFollowUps", () => {
+  it("adds a poll, planning step, and announcement before a social event", () => {
     const state = makeState({
       "week-5": [makeTask("welcome", { tags: ["social"] })],
       "week-7": [makeTask("fall-break", { tags: ["social"] })],
     });
 
-    const next = syncSocialPollSubtasks(state);
+    const next = syncSocialFollowUps(state);
 
     expect(findTask(next, socialPollId("welcome"))).toMatchObject({
       categoryId: "week-1",
@@ -30,6 +31,22 @@ describe("syncSocialPollSubtasks", () => {
         text: SOCIAL_POLL_TEXT,
         parentId: "welcome",
         leadWeeks: SOCIAL_POLL_LEAD_WEEKS,
+      },
+    });
+    expect(findTask(next, startPlanningId("welcome"))).toMatchObject({
+      categoryId: "week-2",
+      task: {
+        text: START_PLANNING_TEXT,
+        parentId: "welcome",
+        leadWeeks: START_PLANNING_LEAD_WEEKS,
+      },
+    });
+    expect(findTask(next, announceId("welcome"))).toMatchObject({
+      categoryId: "week-3",
+      task: {
+        text: ANNOUNCE_TEXT,
+        parentId: "welcome",
+        leadWeeks: ANNOUNCE_LEAD_WEEKS,
       },
     });
     expect(findTask(next, socialPollId("fall-break"))?.categoryId).toBe("week-3");
@@ -41,13 +58,13 @@ describe("syncSocialPollSubtasks", () => {
       "week-3": [makeTask("interviews", { tags: ["recruitment"] })],
     });
 
-    const next = syncSocialPollSubtasks(state);
+    const next = syncSocialFollowUps(state);
 
     expect(Object.values(next.tasks).flat()).toHaveLength(2);
     expect(next).toBe(state);
   });
 
-  it("excludes Retreat and the big little reveal even when tagged social", () => {
+  it("excludes Retreat, the big little reveal, Spring Retreat, and E-ball even when tagged social", () => {
     const state = makeState({
       "week-8": [
         makeTask("default-12", { text: "Retreat", tags: ["social"] }),
@@ -58,48 +75,144 @@ describe("syncSocialPollSubtasks", () => {
           tags: ["social"],
         }),
       ],
+      "spring-week-8": [
+        makeTask("default-32", { text: "Retreat", tags: ["social"] }),
+      ],
+      "spring-week-6": [
+        makeTask("default-36", { text: "E-ball", tags: ["social"] }),
+      ],
     });
 
-    const next = syncSocialPollSubtasks(state);
+    const next = syncSocialFollowUps(state);
 
-    expect(findTask(next, socialPollId("default-12"))).toBeNull();
-    expect(findTask(next, socialPollId("default-18"))).toBeNull();
+    for (const parentId of [
+      "default-12",
+      "default-18",
+      "default-32",
+      "default-36",
+    ]) {
+      for (const followUp of SOCIAL_FOLLOW_UPS) {
+        expect(findTask(next, followUp.id(parentId))).toBeNull();
+      }
+    }
+  });
+
+  it("prunes follow-ups and dependency edges generated before an exclusion", () => {
+    const parentId = "default-36";
+    const state = makeState(
+      {
+        "spring-week-2": [
+          makeTask(socialPollId(parentId), {
+            text: SOCIAL_POLL_TEXT,
+            parentId,
+          }),
+        ],
+        "spring-week-3": [
+          makeTask(startPlanningId(parentId), {
+            text: START_PLANNING_TEXT,
+            parentId,
+          }),
+        ],
+        "spring-week-4": [
+          makeTask(announceId(parentId), {
+            text: ANNOUNCE_TEXT,
+            parentId,
+          }),
+        ],
+        "spring-week-6": [
+          makeTask(parentId, { text: "E-ball", tags: ["social"] }),
+        ],
+      },
+      {
+        dependencies: [
+          { before: socialPollId(parentId), after: parentId },
+          { before: parentId, after: announceId(parentId) },
+          { before: "keep", after: "keep" },
+        ],
+      },
+    );
+
+    const next = syncSocialFollowUps(state);
+
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      expect(findTask(next, followUp.id(parentId))).toBeNull();
+    }
+    expect(next.dependencies).toEqual([]);
   });
 
   it("is idempotent", () => {
-    const once = syncSocialPollSubtasks(
+    const once = syncSocialFollowUps(
       makeState({ "week-5": [makeTask("welcome", { tags: ["social"] })] }),
     );
-    const twice = syncSocialPollSubtasks(once);
+    const twice = syncSocialFollowUps(once);
 
-    expect(Object.values(twice.tasks).flat()).toHaveLength(2);
+    expect(Object.values(twice.tasks).flat()).toHaveLength(
+      1 + SOCIAL_FOLLOW_UPS.length,
+    );
     expect(twice).toBe(once);
   });
 
-  it("does not recreate a poll that was deleted", () => {
+  it("does not recreate a follow-up that was deleted", () => {
     const state = makeState(
       { "week-5": [makeTask("welcome", { tags: ["social"] })] },
-      { removedDefaults: [socialPollId("welcome")] },
+      { removedDefaults: [startPlanningId("welcome")] },
     );
 
-    expect(findTask(syncSocialPollSubtasks(state), socialPollId("welcome"))).toBeNull();
+    const next = syncSocialFollowUps(state);
+
+    expect(findTask(next, startPlanningId("welcome"))).toBeNull();
+    expect(findTask(next, socialPollId("welcome"))).not.toBeNull();
+    expect(findTask(next, announceId("welcome"))).not.toBeNull();
   });
 
-  it("clamps the lead time near the start of the timeline", () => {
+  it("clamps a fall event's follow-ups to the start of the timeline", () => {
     const state = makeState({
       "week-2": [makeTask("welcome", { tags: ["social"] })],
     });
 
-    const poll = findTask(
-      syncSocialPollSubtasks(state),
-      socialPollId("welcome"),
-    );
+    const next = syncSocialFollowUps(state);
 
-    expect(poll?.categoryId).toBe("spring");
-    expect(poll?.task.leadWeeks).toBe(categoryIndex("week-2"));
+    expect(findTask(next, socialPollId("welcome"))).toMatchObject({
+      categoryId: "spring",
+      task: { leadWeeks: 3 },
+    });
+    expect(findTask(next, startPlanningId("welcome"))).toMatchObject({
+      categoryId: "spring",
+      task: { leadWeeks: 3 },
+    });
+    expect(findTask(next, announceId("welcome"))).toMatchObject({
+      categoryId: "summer",
+      task: { leadWeeks: 2 },
+    });
   });
 
-  it("does not add polls to subtasks that carry the social tag", () => {
+  it("keeps a spring event's follow-ups inside the spring semester", () => {
+    const state = makeState({
+      "spring-week-2": [makeTask("early", { tags: ["social"] })],
+      "spring-week-6": [makeTask("later", { tags: ["social"] })],
+    });
+
+    const next = syncSocialFollowUps(state);
+
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      expect(findTask(next, followUp.id("early"))).toMatchObject({
+        categoryId: "spring-week-1",
+        task: { leadWeeks: 1 },
+      });
+    }
+
+    expect(findTask(next, socialPollId("later"))?.categoryId).toBe(
+      "spring-week-2",
+    );
+    expect(findTask(next, startPlanningId("later"))?.categoryId).toBe(
+      "spring-week-3",
+    );
+    expect(findTask(next, announceId("later"))?.categoryId).toBe(
+      "spring-week-4",
+    );
+  });
+
+  it("does not add follow-ups to subtasks that carry the social tag", () => {
     const state = makeState({
       "week-5": [
         makeTask("parent"),
@@ -107,15 +220,17 @@ describe("syncSocialPollSubtasks", () => {
       ],
     });
 
-    const next = syncSocialPollSubtasks(state);
+    const next = syncSocialFollowUps(state);
 
-    expect(findTask(next, socialPollId("child"))).toBeNull();
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      expect(findTask(next, followUp.id("child"))).toBeNull();
+    }
     expect(Object.values(next.tasks).flat()).toHaveLength(2);
   });
 });
 
 function socialEventState(removedDefaults: string[] = []) {
-  return syncSocialPollSubtasks(
+  return syncSocialFollowUps(
     makeState(
       {
         "week-5": [
@@ -136,39 +251,30 @@ describe("togglePollInterest", () => {
     expect(findTask(next!, socialPollId("welcome"))?.task.interested).toBe(true);
   });
 
-  it("adds planning three weeks ahead and an announcement two weeks ahead", () => {
+  it("leaves the planning and announcement tasks in place", () => {
     const next = togglePollInterest(
       socialEventState(),
       socialPollId("welcome"),
     )!;
 
-    expect(findTask(next, startPlanningId("welcome"))).toMatchObject({
-      categoryId: "week-2",
-      task: {
-        text: START_PLANNING_TEXT,
-        parentId: "welcome",
-        leadWeeks: 3,
-      },
-    });
-    expect(findTask(next, announceId("welcome"))).toMatchObject({
-      categoryId: "week-3",
-      task: {
-        text: ANNOUNCE_TEXT,
-        parentId: "welcome",
-        leadWeeks: 2,
-      },
-    });
+    expect(findTask(next, startPlanningId("welcome"))?.task.text).toBe(
+      START_PLANNING_TEXT,
+    );
+    expect(findTask(next, announceId("welcome"))?.task.text).toBe(
+      ANNOUNCE_TEXT,
+    );
   });
 
-  it("clears the flag and removes both follow-ups when interest is removed", () => {
+  it("keeps every follow-up when interest is removed", () => {
     const on = togglePollInterest(socialEventState(), socialPollId("welcome"))!;
     const off = togglePollInterest(on, socialPollId("welcome"))!;
 
     expect(
       findTask(off, socialPollId("welcome"))?.task.interested,
     ).toBeUndefined();
-    expect(findTask(off, startPlanningId("welcome"))).toBeNull();
-    expect(findTask(off, announceId("welcome"))).toBeNull();
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      expect(findTask(off, followUp.id("welcome"))).not.toBeNull();
+    }
   });
 
   it("does not recreate follow-ups that were deleted", () => {
@@ -178,40 +284,6 @@ describe("togglePollInterest", () => {
 
     expect(findTask(next, startPlanningId("welcome"))).toBeNull();
     expect(findTask(next, announceId("welcome"))).not.toBeNull();
-  });
-
-  it("does not duplicate follow-ups when synced again", () => {
-    const on = togglePollInterest(socialEventState(), socialPollId("welcome"))!;
-    const again = syncInterestFollowUps(on);
-
-    expect(again).toBe(on);
-    expect(
-      Object.values(again.tasks)
-        .flat()
-        .filter(
-          (task) =>
-            task.id === startPlanningId("welcome") ||
-            task.id === announceId("welcome"),
-        ),
-    ).toHaveLength(2);
-  });
-
-  it("clamps early follow-ups to the start of the timeline", () => {
-    const state = syncSocialPollSubtasks(
-      makeState({
-        "week-1": [
-          makeTask("early", { text: "Early social", tags: ["social"] }),
-        ],
-      }),
-    );
-
-    const next = togglePollInterest(state, socialPollId("early"))!;
-
-    expect(findTask(next, startPlanningId("early"))).toMatchObject({
-      categoryId: "spring",
-      task: { leadWeeks: categoryIndex("week-1") },
-    });
-    expect(findTask(next, announceId("early"))?.categoryId).toBe("spring");
   });
 
   it("ignores tasks that are not interest polls", () => {

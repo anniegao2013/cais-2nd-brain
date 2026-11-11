@@ -6,7 +6,7 @@ import {
 } from "./defaults";
 import { isDependency, pruneDependencies } from "./dependencies";
 import { sanitizeSubtaskPlacement } from "./placement";
-import { syncInterestFollowUps, syncSocialPollSubtasks } from "./social-polls";
+import { syncSocialFollowUps } from "./social-polls";
 import { isTagId, type TagId } from "./tags";
 import type { AppState, Task, TasksByCategory } from "./types";
 
@@ -136,13 +136,11 @@ export function normalizeStorage(raw: string): AppState {
   }
 
   return sanitizeSubtaskPlacement(
-    syncInterestFollowUps(
-      syncSocialPollSubtasks({
-        tasks: cleaned,
-        removedDefaults,
-        dependencies: pruneDependencies(dependencies, cleaned),
-      }),
-    ),
+    syncSocialFollowUps({
+      tasks: cleaned,
+      removedDefaults,
+      dependencies: pruneDependencies(dependencies, cleaned),
+    }),
   );
 }
 

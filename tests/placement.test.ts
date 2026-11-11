@@ -56,8 +56,15 @@ describe("shiftTaskSpan", () => {
   it("returns null when the shifted end leaves the timeline", () => {
     expect(shiftTaskSpan(makeTask("t", { endCategoryId: "spring" }), -1)).toBeNull();
     expect(
-      shiftTaskSpan(makeTask("t", { endCategoryId: "week-15" }), 1),
+      shiftTaskSpan(makeTask("t", { endCategoryId: "spring-week-16" }), 1),
     ).toBeNull();
+  });
+
+  it("shifts an end section across the semester boundary", () => {
+    expect(
+      shiftTaskSpan(makeTask("t", { endCategoryId: "week-15" }), 1)
+        ?.endCategoryId,
+    ).toBe("spring-week-1");
   });
 });
 

@@ -1,5 +1,6 @@
+import { SPRING_SEMESTER, categoryIdForDate } from "./calendar";
 import { sortState } from "./dependencies";
-import { syncSocialPollSubtasks } from "./social-polls";
+import { syncSocialFollowUps } from "./social-polls";
 import type { TagId } from "./tags";
 import type { AppState, Dependency, TasksByCategory } from "./types";
 import { USC_TIMELINE_HOLIDAYS } from "./usc-holidays";
@@ -15,6 +16,15 @@ type DefaultEvent = {
   suggested?: boolean;
   isHoliday?: boolean;
 };
+
+// Places a suggestion in the week that contains its real holiday date.
+function weekForDate(iso: string): string {
+  const categoryId = categoryIdForDate(iso);
+  if (!categoryId) {
+    throw new Error(`No semester week contains ${iso}.`);
+  }
+  return categoryId;
+}
 
 // Seeded tasks. Keep each id stable: stored moves and deletions reference it.
 const BASE_DEFAULT_EVENTS: DefaultEvent[] = [
@@ -118,6 +128,97 @@ const BASE_DEFAULT_EVENTS: DefaultEvent[] = [
     tags: ["social"],
     suggested: true,
   },
+  // Spring social ideas, placed in the weeks that contain their real dates.
+  {
+    id: "default-27",
+    text: "Valentine's Day",
+    category: weekForDate("2027-02-14"),
+    tags: ["social"],
+    suggested: true,
+  },
+  {
+    id: "default-28",
+    text: "Easter",
+    category: weekForDate("2027-03-28"),
+    tags: ["social"],
+    suggested: true,
+  },
+  {
+    id: "default-29",
+    text: "End of the year",
+    category: weekForDate(SPRING_SEMESTER.classesEndISO),
+    tags: ["social"],
+    suggested: true,
+  },
+  // Spring semester events mirror the fall cadence.
+  {
+    id: "default-30",
+    text: "Start collecting dues",
+    category: "spring-week-1",
+    endCategoryId: "spring-week-2",
+    tags: ["gm"],
+  },
+  {
+    id: "default-31",
+    text: "Project reveal",
+    category: "spring-week-2",
+    endCategoryId: "spring-week-3",
+    tags: ["gm"],
+  },
+  { id: "default-32", text: "Retreat", category: "spring-week-8", tags: ["social"] },
+  // Spring Retreat is in week 8, so the Airbnb request stays four weeks ahead
+  // in week 4 and shifts along with it.
+  {
+    id: "default-33",
+    text: "Submit gift fund request for Airbnb",
+    category: "spring-week-4",
+    parentId: "default-32",
+    leadWeeks: 4,
+  },
+  { id: "default-34", text: "OpenShowCAIS", category: "spring-week-16" },
+  {
+    id: "default-35",
+    text: "Book a room for OpenShowCAIS",
+    category: "spring-week-7",
+    parentId: "default-34",
+  },
+  {
+    id: "default-36",
+    text: "E-ball",
+    category: "spring-week-6",
+    tags: ["social"],
+  },
+  {
+    id: "default-37",
+    text: "Update website with fall projects",
+    category: "spring-week-1",
+  },
+  // Spring e-board transition series. The chain runs from grooming future
+  // members through election results.
+  {
+    id: "default-38",
+    text: "Grooming future eboard",
+    category: "spring-week-1",
+    endCategoryId: "spring-week-2",
+  },
+  {
+    id: "default-39",
+    text: "Eboard role descriptions",
+    category: "spring-week-8",
+    tags: ["gm"],
+  },
+  {
+    id: "default-40",
+    text: "Town hall",
+    category: "spring-week-12",
+    tags: ["gm"],
+  },
+  {
+    id: "default-41",
+    text: "Election results",
+    category: "spring-week-13",
+    tags: ["gm"],
+  },
 ];
 
 // USC holidays and recesses are scraped from the academic calendar. Only the
@@ -127,7 +228,6 @@ const USC_HOLIDAY_EVENTS: DefaultEvent[] = USC_TIMELINE_HOLIDAYS.map(
     id: holiday.id,
     text: holiday.label,
     category: holiday.categoryId,
-    endCategoryId: holiday.endCategoryId,
     isHoliday: true,
   }),
 );
@@ -148,9 +248,21 @@ const RECRUITMENT_CHAIN = [
   "default-11",
 ];
 
+// The spring e-board transition runs in this order.
+const SPRING_EBOARD_CHAIN = [
+  "default-38",
+  "default-39",
+  "default-40",
+  "default-41",
+];
+
 export const DEFAULT_DEPENDENCIES: Dependency[] = [
   ...RECRUITMENT_CHAIN.slice(1).map((id, index) => ({
     before: RECRUITMENT_CHAIN[index],
+    after: id,
+  })),
+  ...SPRING_EBOARD_CHAIN.slice(1).map((id, index) => ({
+    before: SPRING_EBOARD_CHAIN[index],
     after: id,
   })),
   // Big little reveal happens after Retreat.
@@ -180,7 +292,7 @@ function buildDefaultState(): AppState {
       },
     ];
   }
-  return syncSocialPollSubtasks(
+  return syncSocialFollowUps(
     sortState({
       tasks,
       removedDefaults: [],

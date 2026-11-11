@@ -255,15 +255,31 @@ describe("timelineHolidays", () => {
     });
   });
 
-  it("spans a holiday that covers more than one week", () => {
-    const [holiday] = timelineHolidays([
+  it("marks a holiday in the week that holds most of its days", () => {
+    const [early] = timelineHolidays([
       makeEntry("Long Recess", "2026-09-02", "2026-09-10"),
+    ]);
+    const [late] = timelineHolidays([
+      makeEntry("Late Recess", "2026-09-06", "2026-09-10"),
+    ]);
+
+    expect(early).toMatchObject({ categoryId: "week-2" });
+    expect(late).toMatchObject({ categoryId: "week-3" });
+    expect(early).not.toHaveProperty("endCategoryId");
+    expect(late).not.toHaveProperty("endCategoryId");
+  });
+
+  it("puts a Sunday-to-Sunday spring recess in its main week", () => {
+    const [holiday] = timelineHolidays([
+      makeEntry("Spring Recess", "2027-03-14", "2027-03-21"),
     ]);
 
     expect(holiday).toMatchObject({
-      categoryId: "week-2",
-      endCategoryId: "week-3",
+      categoryId: "spring-week-10",
+      startISO: "2027-03-14",
+      endISO: "2027-03-21",
     });
+    expect(holiday).not.toHaveProperty("endCategoryId");
   });
 
   it("builds stable ids from the date and label", () => {
@@ -297,9 +313,24 @@ describe("scraped USC holidays in the default board", () => {
       label: "Thanksgiving Holiday",
       category: "week-14",
     },
+    {
+      id: "usc-holiday-2027-01-18-martin-luther-king-jr-day-holiday",
+      label: "Martin Luther King Jr. Day Holiday",
+      category: "spring-week-2",
+    },
+    {
+      id: "usc-holiday-2027-02-15-presidents-day-holiday",
+      label: "President’s Day Holiday",
+      category: "spring-week-6",
+    },
+    {
+      id: "usc-holiday-2027-03-14-spring-recess",
+      label: "Spring Recess",
+      category: "spring-week-10",
+    },
   ];
 
-  it("finds the four Fall 2026 holidays on the dated timeline", () => {
+  it("finds the Fall 2026 and Spring 2027 holidays on the dated timeline", () => {
     expect(
       USC_TIMELINE_HOLIDAYS.map((holiday) => ({
         id: holiday.id,
@@ -319,19 +350,17 @@ describe("scraped USC holidays in the default board", () => {
     expect(found?.categoryId).toBe(category);
   });
 
-  it("leaves out holidays after Classes End", () => {
+  it("leaves out holidays that do not map to an instructional week", () => {
     expect(DEFAULT_EVENTS.some((event) => event.text === "Winter Recess")).toBe(
       false,
     );
     expect(
-      DEFAULT_EVENTS.some(
-        (event) => event.id === "usc-holiday-2026-12-17-winter-recess",
-      ),
+      DEFAULT_EVENTS.some((event) => event.text === "Memorial Day Holiday"),
     ).toBe(false);
   });
 
   it("uses the scraped instructional range", () => {
     expect(TIMELINE_START_ISO).toBe("2026-08-24");
-    expect(TIMELINE_END_ISO).toBe("2026-12-04");
+    expect(TIMELINE_END_ISO).toBe("2027-04-30");
   });
 });

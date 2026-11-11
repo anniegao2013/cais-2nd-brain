@@ -1,4 +1,6 @@
 import { CATEGORIES, categoryIndex } from "./categories";
+import { weekInfoFromCategoryId } from "./calendar";
+import { pruneDependencies } from "./dependencies";
 import { findTask } from "./tasks";
 import type { AppState, Task, TasksByCategory } from "./types";
 
@@ -11,11 +13,13 @@ export const START_PLANNING_LEAD_WEEKS = 3;
 export const ANNOUNCE_TEXT = "Announce";
 export const ANNOUNCE_LEAD_WEEKS = 2;
 
-// Big little reveal and Retreat are large social events that are planned
-// directly, so they do not get an automatic interest poll.
+// Retreats, the big little reveal, and E-ball are large social events that are
+// planned directly, so they do not get automatic follow-ups.
 export const SOCIAL_POLL_EXCLUDED_PARENT_IDS = new Set([
   "default-12", // Retreat
   "default-18", // Big little reveal
+  "default-32", // Spring Retreat
+  "default-36", // E-ball
 ]);
 
 export function socialPollId(parentId: string): string {
@@ -34,6 +38,31 @@ export function isInterestPoll(task: Task): boolean {
   return task.id.startsWith(INTEREST_POLL_PREFIX);
 }
 
+type SocialFollowUp = {
+  text: string;
+  leadWeeks: number;
+  id: (parentId: string) => string;
+};
+
+// Every social event gets these three subtasks, scheduled at their lead times.
+export const SOCIAL_FOLLOW_UPS: SocialFollowUp[] = [
+  {
+    text: SOCIAL_POLL_TEXT,
+    leadWeeks: SOCIAL_POLL_LEAD_WEEKS,
+    id: socialPollId,
+  },
+  {
+    text: START_PLANNING_TEXT,
+    leadWeeks: START_PLANNING_LEAD_WEEKS,
+    id: startPlanningId,
+  },
+  {
+    text: ANNOUNCE_TEXT,
+    leadWeeks: ANNOUNCE_LEAD_WEEKS,
+    id: announceId,
+  },
+];
+
 function isSocialEvent(task: Task): boolean {
   return (
     !task.parentId &&
@@ -50,143 +79,94 @@ function cloneTasks(tasks: TasksByCategory): TasksByCategory {
   return copy;
 }
 
-// Gives every social event a "Poll for interest" subtask four sections ahead
-// of it. The id is derived from the parent so repeated runs stay idempotent,
-// and deleting the poll records its id in removedDefaults to keep it deleted.
-export function syncSocialPollSubtasks(state: AppState): AppState {
-  const tasks = cloneTasks(state.tasks);
-  const presentIds = new Set(
-    Object.values(state.tasks)
-      .flat()
-      .map((task) => task.id),
-  );
-  const removedIds = new Set(state.removedDefaults);
-  let changed = false;
+// Follow-ups stay inside the event's semester. Fall events may fall back into
+// the pre-year sections, while spring events stop at the first spring week
+// instead of spilling back into the fall.
+const FIRST_SPRING_WEEK_INDEX = CATEGORIES.findIndex((category) =>
+  category.id.startsWith("spring-week-"),
+);
 
-  for (const [parentCategoryId, list] of Object.entries(state.tasks)) {
-    for (const parent of list) {
-      if (!isSocialEvent(parent)) continue;
-
-      const pollId = socialPollId(parent.id);
-      if (presentIds.has(pollId) || removedIds.has(pollId)) continue;
-
-      const parentIndex = categoryIndex(parentCategoryId);
-      const lead = Math.min(SOCIAL_POLL_LEAD_WEEKS, parentIndex);
-      const targetCategory = CATEGORIES[parentIndex - lead].id;
-      const poll: Task = {
-        id: pollId,
-        text: SOCIAL_POLL_TEXT,
-        done: false,
-        parentId: parent.id,
-      };
-      if (lead > 0) poll.leadWeeks = lead;
-
-      tasks[targetCategory] = [...(tasks[targetCategory] ?? []), poll];
-      presentIds.add(pollId);
-      changed = true;
-    }
-  }
-
-  return changed ? { ...state, tasks } : state;
-}
-
-function addFollowUp(
+function fillFollowUp(
   tasks: TasksByCategory,
   presentIds: Set<string>,
   removedIds: Set<string>,
   event: { task: Task; categoryId: string },
-  id: string,
-  text: string,
-  leadWeeks: number,
+  followUp: SocialFollowUp,
 ): boolean {
+  const id = followUp.id(event.task.id);
   if (presentIds.has(id) || removedIds.has(id)) return false;
 
   const eventIndex = categoryIndex(event.categoryId);
-  const lead = Math.min(leadWeeks, eventIndex);
-  const targetCategory = CATEGORIES[eventIndex - lead].id;
-  const followUp: Task = {
+  if (eventIndex < 0) return false;
+
+  const semesterStartIndex =
+    weekInfoFromCategoryId(event.categoryId)?.semesterId === "spring"
+      ? FIRST_SPRING_WEEK_INDEX
+      : 0;
+  const targetIndex = Math.max(semesterStartIndex, eventIndex - followUp.leadWeeks);
+  const lead = eventIndex - targetIndex;
+
+  const task: Task = {
     id,
-    text,
+    text: followUp.text,
     done: false,
     parentId: event.task.id,
   };
-  if (lead > 0) followUp.leadWeeks = lead;
+  if (lead > 0) task.leadWeeks = lead;
 
-  tasks[targetCategory] = [...(tasks[targetCategory] ?? []), followUp];
+  const targetCategory = CATEGORIES[targetIndex].id;
+  tasks[targetCategory] = [...(tasks[targetCategory] ?? []), task];
   presentIds.add(id);
   return true;
 }
 
-// An interested poll adds the two planning steps for its event: start planning
-// three sections ahead and announce two sections ahead.
-export function syncInterestFollowUps(state: AppState): AppState {
-  const interestedPolls = Object.values(state.tasks)
-    .flat()
-    .filter(
-      (task): task is Task & { parentId: string } =>
-        isInterestPoll(task) && Boolean(task.interested) && Boolean(task.parentId),
-    );
-
-  if (interestedPolls.length === 0) return state;
-
+// Gives every social event its poll, planning, and announcement subtasks. The
+// ids are derived from the parent so repeated runs stay idempotent, and
+// deleting a generated task records its id in removedDefaults to keep it gone.
+// Follow-ups generated before a parent was excluded are pruned here, along with
+// any ordering edges that referenced them.
+export function syncSocialFollowUps(state: AppState): AppState {
   const tasks = cloneTasks(state.tasks);
-  const presentIds = new Set(
-    Object.values(state.tasks)
-      .flat()
-      .map((task) => task.id),
-  );
-  const removedIds = new Set(state.removedDefaults);
   let changed = false;
 
-  for (const poll of interestedPolls) {
-    const event = findTask(state, poll.parentId);
-    if (!event) continue;
-
-    if (
-      addFollowUp(
-        tasks,
-        presentIds,
-        removedIds,
-        event,
-        startPlanningId(event.task.id),
-        START_PLANNING_TEXT,
-        START_PLANNING_LEAD_WEEKS,
-      )
-    ) {
-      changed = true;
+  const excludedFollowUpParents = new Map<string, string>();
+  for (const parentId of SOCIAL_POLL_EXCLUDED_PARENT_IDS) {
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      excludedFollowUpParents.set(followUp.id(parentId), parentId);
     }
-    if (
-      addFollowUp(
-        tasks,
-        presentIds,
-        removedIds,
-        event,
-        announceId(event.task.id),
-        ANNOUNCE_TEXT,
-        ANNOUNCE_LEAD_WEEKS,
-      )
-    ) {
+  }
+
+  for (const [categoryId, list] of Object.entries(tasks)) {
+    const kept = list.filter((task) => {
+      const parentId = excludedFollowUpParents.get(task.id);
+      return !(parentId && task.parentId === parentId);
+    });
+    if (kept.length !== list.length) {
+      tasks[categoryId] = kept;
       changed = true;
     }
   }
 
-  return changed ? { ...state, tasks } : state;
-}
+  const presentIds = new Set(
+    Object.values(tasks)
+      .flat()
+      .map((task) => task.id),
+  );
+  const removedIds = new Set(state.removedDefaults);
+  const socialParents = Object.entries(tasks).flatMap(([categoryId, list]) =>
+    list
+      .filter(isSocialEvent)
+      .map((task) => ({ task, categoryId })),
+  );
 
-function removeInterestFollowUps(
-  state: AppState,
-  eventId: string | undefined,
-): AppState {
-  if (!eventId) return state;
-
-  const ids = new Set([startPlanningId(eventId), announceId(eventId)]);
-  const tasks = cloneTasks(state.tasks);
-  let changed = false;
-
-  for (const [categoryId, list] of Object.entries(tasks)) {
-    const next = list.filter((task) => !ids.has(task.id));
-    if (next.length !== list.length) changed = true;
-    tasks[categoryId] = next;
+  for (const event of socialParents) {
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      if (
+        fillFollowUp(tasks, presentIds, removedIds, event, followUp)
+      ) {
+        changed = true;
+      }
+    }
   }
 
   if (!changed) return state;
@@ -194,12 +174,12 @@ function removeInterestFollowUps(
   return {
     ...state,
     tasks,
-    dependencies: state.dependencies.filter(
-      (edge) => !ids.has(edge.before) && !ids.has(edge.after),
-    ),
+    dependencies: pruneDependencies(state.dependencies, tasks),
   };
 }
 
+// Interest only records whether the group wants the event; the follow-up tasks
+// are always present, so toggling this never adds or removes them.
 export function togglePollInterest(
   state: AppState,
   pollId: string,
@@ -210,20 +190,16 @@ export function togglePollInterest(
   const interested = !location.task.interested;
   const tasks = cloneTasks(state.tasks);
 
-  for (const [categoryId, list] of Object.entries(tasks)) {
-    tasks[categoryId] = list.map((task) => {
-      if (task.id !== pollId) return task;
-      const next = { ...task };
-      if (interested) {
-        next.interested = true;
-      } else {
-        delete next.interested;
-      }
-      return next;
-    });
-  }
+  tasks[location.categoryId] = tasks[location.categoryId].map((task) => {
+    if (task.id !== pollId) return task;
+    const next = { ...task };
+    if (interested) {
+      next.interested = true;
+    } else {
+      delete next.interested;
+    }
+    return next;
+  });
 
-  const next = { ...state, tasks };
-  if (interested) return syncInterestFollowUps(next);
-  return removeInterestFollowUps(next, location.task.parentId);
+  return { ...state, tasks };
 }

@@ -1,5 +1,5 @@
 import { CATEGORIES, categoryIndex, sectionLabel } from "./categories";
-import { weekNumberFromCategoryId } from "./calendar";
+import { weekInfoFromCategoryId } from "./calendar";
 import type { AppState, Task, TaskOccurrence } from "./types";
 
 export function findTask(
@@ -47,13 +47,19 @@ export function overdueWeekOccurrences(
   state: AppState,
   currentWeekCategoryId: string,
 ): TaskOccurrence[] {
-  const currentWeek = weekNumberFromCategoryId(currentWeekCategoryId);
-  if (currentWeek === null) return [];
+  const current = weekInfoFromCategoryId(currentWeekCategoryId);
+  if (!current) return [];
 
   const occurrences: TaskOccurrence[] = [];
   for (const category of CATEGORIES) {
-    const week = weekNumberFromCategoryId(category.id);
-    if (week === null || week >= currentWeek) continue;
+    const info = weekInfoFromCategoryId(category.id);
+    if (
+      !info ||
+      info.semesterId !== current.semesterId ||
+      info.week >= current.week
+    ) {
+      continue;
+    }
 
     for (const task of state.tasks[category.id] ?? []) {
       const parent = task.parentId
@@ -63,10 +69,16 @@ export function overdueWeekOccurrences(
         continue;
       }
 
-      const endWeek = task.endCategoryId
-        ? weekNumberFromCategoryId(task.endCategoryId)
-        : week;
-      if ((endWeek ?? week) >= currentWeek) continue;
+      const end = task.endCategoryId
+        ? weekInfoFromCategoryId(task.endCategoryId)
+        : info;
+      if (
+        !end ||
+        end.semesterId !== current.semesterId ||
+        end.week >= current.week
+      ) {
+        continue;
+      }
 
       occurrences.push({
         task,
@@ -84,8 +96,11 @@ export function spanLabel(
   startCategoryId: string,
   endCategoryId: string,
 ): string {
-  if (startCategoryId.startsWith("week-") && endCategoryId.startsWith("week-")) {
-    return `Weeks ${startCategoryId.slice(5)}–${endCategoryId.slice(5)}`;
+  const start = weekInfoFromCategoryId(startCategoryId);
+  const end = weekInfoFromCategoryId(endCategoryId);
+  if (start && end && start.semesterId === end.semesterId) {
+    const prefix = start.semesterId === "fall" ? "Fall weeks" : "Spring weeks";
+    return `${prefix} ${start.week}–${end.week}`;
   }
   return `${sectionLabel(startCategoryId)} → ${sectionLabel(endCategoryId)}`;
 }

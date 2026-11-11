@@ -27,10 +27,11 @@ export type TimelineHoliday = {
   id: string;
   label: string;
   categoryId: string;
-  endCategoryId?: string;
   startISO: string;
   endISO: string;
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function slugify(value: string): string {
   return value
@@ -42,6 +43,36 @@ function slugify(value: string): string {
 
 function holidayId(entry: UscCalendarEntry): string {
   return `usc-holiday-${entry.startISO}-${slugify(entry.label)}`;
+}
+
+// A multi-day break can touch two week blocks. Mark it in the week that holds
+// most of its days, so a Sunday-to-Sunday recess lands in its main week instead
+// of spanning both.
+function majorityWeekCategoryId(
+  startISO: string,
+  endISO: string,
+): string | null {
+  const counts = new Map<string, number>();
+  const start = Date.parse(`${startISO}T00:00:00Z`);
+  const end = Date.parse(`${endISO}T00:00:00Z`);
+
+  for (let ms = start; ms <= end; ms += DAY_MS) {
+    const categoryId = categoryIdForDate(
+      new Date(ms).toISOString().slice(0, 10),
+    );
+    if (!categoryId) continue;
+    counts.set(categoryId, (counts.get(categoryId) ?? 0) + 1);
+  }
+
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [categoryId, count] of counts) {
+    if (count > bestCount) {
+      best = categoryId;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 // Holidays and recesses that overlap the dated instructional timeline. Dates
@@ -64,19 +95,17 @@ export function timelineHolidays(
         : entry.startISO;
     const endISO =
       entry.endISO > TIMELINE_END_ISO ? TIMELINE_END_ISO : entry.endISO;
-    const categoryId = categoryIdForDate(startISO);
+    const categoryId = majorityWeekCategoryId(startISO, endISO);
     if (!categoryId) continue;
 
     const id = holidayId(entry);
     if (seen.has(id)) continue;
     seen.add(id);
 
-    const endCategoryId = categoryIdForDate(endISO) ?? categoryId;
     holidays.push({
       id,
       label: entry.label,
       categoryId,
-      ...(endCategoryId === categoryId ? {} : { endCategoryId }),
       startISO: entry.startISO,
       endISO: entry.endISO,
     });

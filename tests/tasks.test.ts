@@ -134,6 +134,23 @@ describe("overdueWeekOccurrences", () => {
     ).toEqual(["week-task"]);
   });
 
+  it("only carries overdue tasks within the same semester", () => {
+    const state = makeState({
+      "week-1": [makeTask("fall-late")],
+      "spring-week-1": [
+        makeTask("spring-late"),
+        makeTask("spring-done", { done: true }),
+      ],
+      "spring-week-4": [makeTask("spring-current")],
+    });
+
+    expect(
+      ids(
+        overdueWeekOccurrences(state, "spring-week-4").map(({ task }) => task),
+      ),
+    ).toEqual(["spring-late"]);
+  });
+
   it("returns nothing without a numbered current week", () => {
     const state = makeState({ "week-1": [makeTask("late")] });
 
@@ -144,13 +161,19 @@ describe("overdueWeekOccurrences", () => {
 
 describe("spanLabel", () => {
   it("uses week ranges for week-to-week spans", () => {
-    expect(spanLabel("week-1", "week-3")).toBe("Weeks 1–3");
+    expect(spanLabel("week-1", "week-3")).toBe("Fall weeks 1–3");
+    expect(spanLabel("spring-week-2", "spring-week-5")).toBe(
+      "Spring weeks 2–5",
+    );
   });
 
   it("uses section labels for other spans", () => {
-    expect(spanLabel("summer", "week-2")).toBe("Summer → Week 2");
+    expect(spanLabel("summer", "week-2")).toBe("Summer → Fall Week 2");
     expect(spanLabel("spring", "summer")).toBe(
       "Before end of spring semester → Summer",
+    );
+    expect(spanLabel("week-15", "spring-week-1")).toBe(
+      "Fall Week 15 → Spring Week 1",
     );
   });
 });

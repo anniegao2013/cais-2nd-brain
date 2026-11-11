@@ -6,6 +6,7 @@ import {
 } from "../lib/defaults";
 import { normalizeStorage } from "../lib/storage";
 import {
+  SOCIAL_FOLLOW_UPS,
   announceId,
   socialPollId,
   startPlanningId,
@@ -289,6 +290,30 @@ describe("normalizeStorage", () => {
     expect(ids(state.tasks["week-3"])).toContain(holidayId);
   });
 
+  it("moves the Sunday-to-Sunday spring recess into its main week", () => {
+    const holidayId = "usc-holiday-2027-03-14-spring-recess";
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "spring-week-9": [
+            {
+              id: holidayId,
+              text: "Spring Recess",
+              done: false,
+              endCategoryId: "spring-week-10",
+            },
+          ],
+        },
+        removedDefaults: removedExcept(holidayId),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(ids(state.tasks["spring-week-9"] ?? [])).not.toContain(holidayId);
+    expect(ids(state.tasks["spring-week-10"])).toContain(holidayId);
+    expect(findTask(state, holidayId)?.task.endCategoryId).toBeUndefined();
+  });
+
   it("leaves a deliberately moved non-holiday default where it is", () => {
     const state = normalizeStorage(
       stored({
@@ -356,7 +381,7 @@ describe("normalizeStorage", () => {
     expect(retreat?.task.suggested).toBeUndefined();
   });
 
-  it("adds interest polls to social events on older saves", () => {
+  it("adds social follow-ups to social events on older saves", () => {
     const state = normalizeStorage(
       stored({
         tasks: {
@@ -383,6 +408,82 @@ describe("normalizeStorage", () => {
         leadWeeks: 4,
       },
     });
+    expect(findTask(state, startPlanningId("default-22"))).toMatchObject({
+      categoryId: "week-2",
+      task: { text: "Start planning", parentId: "default-22", leadWeeks: 3 },
+    });
+    expect(findTask(state, announceId("default-22"))).toMatchObject({
+      categoryId: "week-3",
+      task: { text: "Announce", parentId: "default-22", leadWeeks: 2 },
+    });
+  });
+
+  it("prunes saved follow-ups for newly excluded social events", () => {
+    const excluded = ["default-32", "default-36"];
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "spring-week-2": [
+            {
+              id: socialPollId("default-36"),
+              text: "Poll for interest",
+              done: false,
+              parentId: "default-36",
+            },
+          ],
+          "spring-week-3": [
+            {
+              id: startPlanningId("default-36"),
+              text: "Start planning",
+              done: false,
+              parentId: "default-36",
+            },
+          ],
+          "spring-week-4": [
+            {
+              id: announceId("default-36"),
+              text: "Announce",
+              done: false,
+              parentId: "default-36",
+            },
+            {
+              id: announceId("default-32"),
+              text: "Announce",
+              done: false,
+              parentId: "default-32",
+            },
+          ],
+          "spring-week-6": [
+            {
+              id: "default-36",
+              text: "E-ball",
+              done: false,
+              tags: ["social"],
+            },
+          ],
+          "spring-week-8": [
+            {
+              id: "default-32",
+              text: "Retreat",
+              done: false,
+              tags: ["social"],
+            },
+          ],
+        },
+        removedDefaults: removedExcept(...excluded),
+        dependencies: [
+          { before: socialPollId("default-36"), after: "default-36" },
+          { before: announceId("default-32"), after: "default-32" },
+        ],
+      }),
+    );
+
+    for (const parentId of excluded) {
+      for (const followUp of SOCIAL_FOLLOW_UPS) {
+        expect(findTask(state, followUp.id(parentId))).toBeNull();
+      }
+    }
+    expect(state.dependencies).toEqual([]);
   });
 
   it("does not recreate an interest poll that was deleted", () => {
@@ -409,7 +510,7 @@ describe("normalizeStorage", () => {
     expect(findTask(state, socialPollId("default-22"))).toBeNull();
   });
 
-  it("adds follow-ups for an interested poll on older saves", () => {
+  it("keeps follow-ups when an older save already marked interest", () => {
     const state = normalizeStorage(
       stored({
         tasks: {
@@ -438,6 +539,9 @@ describe("normalizeStorage", () => {
       }),
     );
 
+    expect(
+      findTask(state, socialPollId("default-22"))?.task.interested,
+    ).toBe(true);
     expect(findTask(state, startPlanningId("default-22"))).toMatchObject({
       categoryId: "week-2",
       task: { parentId: "default-22", leadWeeks: 3 },
@@ -446,5 +550,31 @@ describe("normalizeStorage", () => {
       categoryId: "week-3",
       task: { parentId: "default-22", leadWeeks: 2 },
     });
+  });
+
+  it("does not recreate a planning follow-up that was deleted", () => {
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-5": [
+            {
+              id: "default-22",
+              text: "Welcome new members",
+              done: false,
+              tags: ["social"],
+            },
+          ],
+        },
+        removedDefaults: [
+          ...ALL_DEFAULT_IDS.filter((id) => id !== "default-22"),
+          startPlanningId("default-22"),
+        ],
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(findTask(state, startPlanningId("default-22"))).toBeNull();
+    expect(findTask(state, socialPollId("default-22"))).not.toBeNull();
+    expect(findTask(state, announceId("default-22"))).not.toBeNull();
   });
 });
