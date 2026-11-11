@@ -2,12 +2,15 @@
 
 A web app for keeping track of tasks and events.
 
-Tasks live under sequential sections: before the end of spring semester,
-summer, and the numbered instructional weeks. Weeks are grounded in the USC
-academic calendar: Week 1 starts on Classes Begin, the last week ends on Classes
-End, and each week header shows its date range. The final week is shortened when
-Classes End falls before the end of that calendar week. A set of default tasks
-is pre-filled and can be moved to another section or deleted.
+Tasks are grouped into tabs: before the year (the end of the prior spring
+semester and summer), the fall semester, and the spring semester. Each
+semester's numbered weeks are grounded in the USC academic calendar: Week 1
+starts on Classes Begin, the last week ends on Classes End, and each week header
+shows its date range. The final week is shortened when Classes End falls before
+the end of that calendar week. The board opens on the tab containing the current
+week, and earlier weeks in that tab stay behind a control until they are shown.
+A set of default tasks is pre-filled and can be moved to another section or
+deleted.
 Tasks can span multiple sections and are listed
 under every week they cover, with the range shown under the title. They can
 also have subtasks with editable lead times, plus descriptions that expand on

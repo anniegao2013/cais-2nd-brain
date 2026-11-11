@@ -1,5 +1,6 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { weekRangeLabel } from "@/lib/calendar";
+import { tabForCategoryId } from "@/lib/categories";
 import { overdueWeekOccurrences, taskOccurrences } from "@/lib/tasks";
 import { AddTaskForm } from "./add-task-form";
 import { TaskRow } from "./task-row";
@@ -8,16 +9,17 @@ export function TaskSection({
   board,
   category,
   isCurrentWeek = false,
-  currentWeek = null,
+  currentWeekCategoryId = null,
 }: {
   board: TaskBoardController;
   category: { id: string; label: string };
   isCurrentWeek?: boolean;
-  currentWeek?: number | null;
+  currentWeekCategoryId?: string | null;
 }) {
-  const currentWeekCategoryId =
-    currentWeek === null ? null : `week-${currentWeek}`;
-  const overdue = currentWeekCategoryId
+  const currentWeekInThisTab =
+    currentWeekCategoryId !== null &&
+    tabForCategoryId(currentWeekCategoryId) === tabForCategoryId(category.id);
+  const overdue = currentWeekInThisTab
     ? overdueWeekOccurrences(board.state, currentWeekCategoryId)
     : [];
   const overdueIds = new Set(overdue.map(({ task }) => task.id));

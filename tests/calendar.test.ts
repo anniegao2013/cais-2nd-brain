@@ -2,13 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   CLASSES_BEGIN_ISO,
   CLASSES_END_ISO,
+  SPRING_WEEK_COUNT,
   WEEK_COUNT,
   WEEK_ONE_START,
+  categoryIdForDate,
+  currentWeekCategoryId,
   currentWeekNumber,
   gmDateLabel,
+  semesterRangeLabel,
   timelineRangeLabel,
+  weekInfoFromCategoryId,
   weekNumberFromCategoryId,
   weekRange,
+  weekRangeForSemester,
   weekRangeLabel,
   weekWednesdayISO,
 } from "../lib/calendar";
@@ -68,8 +74,56 @@ describe("weekRangeLabel", () => {
   it("labels week sections and ignores the rest", () => {
     expect(weekRangeLabel("week-3")).toBe("Sep 7–13");
     expect(weekRangeLabel("week-15")).toBe("Nov 30–Dec 4");
+    expect(weekRangeLabel("spring-week-1")).toBe("Jan 11–17");
     expect(weekRangeLabel("spring")).toBeNull();
     expect(weekRangeLabel("summer")).toBeNull();
+  });
+});
+
+describe("spring semester", () => {
+  it("runs its own numbered weeks from Spring Classes Begin", () => {
+    expect(SPRING_WEEK_COUNT).toBe(16);
+    expect(weekRangeForSemester("spring", 1)).toMatchObject({
+      startISO: "2027-01-11",
+      endISO: "2027-01-17",
+      label: "Jan 11–17",
+    });
+    expect(weekRangeForSemester("spring", SPRING_WEEK_COUNT)).toMatchObject({
+      startISO: "2027-04-26",
+      endISO: "2027-04-30",
+      label: "Apr 26–30",
+    });
+    expect(semesterRangeLabel("spring")).toBe("Jan 11 – Apr 30, 2027");
+  });
+
+  it("parses spring week category ids", () => {
+    expect(weekInfoFromCategoryId("spring-week-6")).toEqual({
+      semesterId: "spring",
+      week: 6,
+    });
+    expect(weekNumberFromCategoryId("spring-week-6")).toBeNull();
+    expect(weekInfoFromCategoryId("spring")).toBeNull();
+    expect(weekInfoFromCategoryId("spring-week-17")).toBeNull();
+  });
+
+  it("maps Spring 2027 dates and holidays onto spring weeks", () => {
+    expect(categoryIdForDate("2027-01-11")).toBe("spring-week-1");
+    expect(categoryIdForDate("2027-02-15")).toBe("spring-week-6");
+    expect(categoryIdForDate("2027-04-30")).toBe("spring-week-16");
+    expect(categoryIdForDate("2026-12-17")).toBeNull();
+    expect(categoryIdForDate("2027-05-01")).toBeNull();
+  });
+
+  it("finds the spring week containing today", () => {
+    expect(currentWeekCategoryId(new Date(2027, 1, 15, 12))).toBe(
+      "spring-week-6",
+    );
+    expect(currentWeekNumber(new Date(2027, 1, 15, 12))).toBeNull();
+  });
+
+  it("puts GM on the Wednesday of a spring week", () => {
+    expect(weekWednesdayISO("spring-week-1")).toBe("2027-01-13");
+    expect(gmDateLabel("spring-week-1")).toBe("Wed, Jan 13");
   });
 });
 

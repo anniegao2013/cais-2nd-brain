@@ -297,16 +297,38 @@ describe("scraped USC holidays in the default board", () => {
       label: "Thanksgiving Holiday",
       category: "week-14",
     },
+    {
+      id: "usc-holiday-2027-01-18-martin-luther-king-jr-day-holiday",
+      label: "Martin Luther King Jr. Day Holiday",
+      category: "spring-week-2",
+    },
+    {
+      id: "usc-holiday-2027-02-15-presidents-day-holiday",
+      label: "President’s Day Holiday",
+      category: "spring-week-6",
+    },
+    {
+      id: "usc-holiday-2027-03-14-spring-recess",
+      label: "Spring Recess",
+      category: "spring-week-9",
+      endCategory: "spring-week-10",
+    },
   ];
 
-  it("finds the four Fall 2026 holidays on the dated timeline", () => {
+  it("finds the Fall 2026 and Spring 2027 holidays on the dated timeline", () => {
     expect(
       USC_TIMELINE_HOLIDAYS.map((holiday) => ({
         id: holiday.id,
         label: holiday.label,
         category: holiday.categoryId,
+        endCategory: holiday.endCategoryId,
       })),
-    ).toEqual(expected);
+    ).toEqual(
+      expected.map((holiday) => ({
+        ...holiday,
+        endCategory: holiday.endCategory,
+      })),
+    );
   });
 
   it.each(expected)("seeds $label in $category", ({ id, label, category }) => {
@@ -319,19 +341,17 @@ describe("scraped USC holidays in the default board", () => {
     expect(found?.categoryId).toBe(category);
   });
 
-  it("leaves out holidays after Classes End", () => {
+  it("leaves out holidays that do not map to an instructional week", () => {
     expect(DEFAULT_EVENTS.some((event) => event.text === "Winter Recess")).toBe(
       false,
     );
     expect(
-      DEFAULT_EVENTS.some(
-        (event) => event.id === "usc-holiday-2026-12-17-winter-recess",
-      ),
+      DEFAULT_EVENTS.some((event) => event.text === "Memorial Day Holiday"),
     ).toBe(false);
   });
 
   it("uses the scraped instructional range", () => {
     expect(TIMELINE_START_ISO).toBe("2026-08-24");
-    expect(TIMELINE_END_ISO).toBe("2026-12-04");
+    expect(TIMELINE_END_ISO).toBe("2027-04-30");
   });
 });

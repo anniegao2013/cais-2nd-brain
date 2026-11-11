@@ -498,7 +498,7 @@ describe("moveTask", () => {
     expect(next?.tasks["week-2"][0].endCategoryId).toBe("week-4");
   });
 
-  it("rejects a move that would push the span off the timeline", () => {
+  it("shifts a span across the semester boundary when moved", () => {
     const state = makeState(
       {
         spring: [makeTask("t", { endCategoryId: "week-15" })],
@@ -507,7 +507,18 @@ describe("moveTask", () => {
       {},
     );
 
-    expect(moveTask(state, "spring", "t", "summer")).toBeNull();
+    const next = moveTask(state, "spring", "t", "summer");
+
+    expect(next?.tasks.summer[0].endCategoryId).toBe("spring-week-1");
+  });
+
+  it("rejects a move that would push the span off the timeline", () => {
+    const state = makeState({
+      "spring-week-14": [makeTask("t", { endCategoryId: "spring-week-16" })],
+      "spring-week-15": [],
+    });
+
+    expect(moveTask(state, "spring-week-14", "t", "spring-week-15")).toBeNull();
   });
 
   it("keeps a subtask at or before its parent", () => {

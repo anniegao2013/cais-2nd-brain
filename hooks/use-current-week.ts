@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { currentWeekNumber } from "@/lib/calendar";
+import { currentWeekCategoryId } from "@/lib/calendar";
 
 // Re-check periodically so an open tab notices when the week rolls over.
 function subscribe(onChange: () => void): () => void {
@@ -9,8 +9,8 @@ function subscribe(onChange: () => void): () => void {
   return () => window.clearInterval(timer);
 }
 
-function getSnapshot(): number | null {
-  return currentWeekNumber();
+function getSnapshot(): string | null {
+  return currentWeekCategoryId();
 }
 
 // The page is statically rendered, so render no indicator until hydration.
@@ -18,6 +18,8 @@ function getServerSnapshot(): null {
   return null;
 }
 
-export function useCurrentWeek(): number | null {
+// Returns the category id (for example `week-12` or `spring-week-3`) whose week
+// contains today, or null during a break.
+export function useCurrentWeek(): string | null {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
