@@ -5,6 +5,7 @@ import {
   DEFAULT_STATE,
 } from "../lib/defaults";
 import { normalizeStorage } from "../lib/storage";
+import { gmEventId } from "../lib/gm-events";
 import {
   SOCIAL_FOLLOW_UPS,
   announceId,
@@ -202,6 +203,46 @@ describe("normalizeStorage", () => {
     );
 
     expect(Object.values(state.tasks).flat()).toEqual([]);
+  });
+
+  it("keeps a saved GM task instead of adding a generated duplicate", () => {
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-5": [
+            { id: "saved-gm", text: "GM", done: false, tags: ["gm"] },
+            {
+              id: gmEventId("week-5"),
+              text: "GM",
+              done: false,
+              tags: ["gm"],
+            },
+          ],
+        },
+        removedDefaults: [],
+        dependencies: [],
+      }),
+    );
+
+    expect(ids(state.tasks["week-5"])).toContain("saved-gm");
+    expect(ids(state.tasks["week-5"])).not.toContain(gmEventId("week-5"));
+  });
+
+  it("still generates GM for weeks without a saved GM task", () => {
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-5": [
+            { id: "saved-gm", text: "GM", done: false, tags: ["gm"] },
+          ],
+        },
+        removedDefaults: [],
+        dependencies: [],
+      }),
+    );
+
+    expect(ids(state.tasks["week-5"])).not.toContain(gmEventId("week-5"));
+    expect(ids(state.tasks["week-6"])).toContain(gmEventId("week-6"));
   });
 
   it("adds social suggestions to saves created before they existed", () => {

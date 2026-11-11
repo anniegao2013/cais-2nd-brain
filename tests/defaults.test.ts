@@ -87,6 +87,20 @@ describe("default events", () => {
     });
   });
 
+  it("seeds weekly GM events only in weeks without a holiday conflict", () => {
+    expect(findTask(DEFAULT_STATE, "gm-spring-week-12")).toMatchObject({
+      categoryId: "spring-week-12",
+      task: { text: "GM", tags: ["gm"] },
+    });
+    expect(findTask(DEFAULT_STATE, "gm-week-3")).toMatchObject({
+      categoryId: "week-3",
+      task: { text: "GM", tags: ["gm"] },
+    });
+    expect(findTask(DEFAULT_STATE, "gm-week-7")).toBeNull(); // Fall Recess
+    expect(findTask(DEFAULT_STATE, "gm-week-12")).toBeNull(); // Veterans Day
+    expect(findTask(DEFAULT_STATE, "gm-spring-week-10")).toBeNull(); // Spring Recess
+  });
+
   it("seeds the spring e-board transition series", () => {
     expect(findTask(DEFAULT_STATE, "default-38")).toMatchObject({
       categoryId: "spring-week-1",

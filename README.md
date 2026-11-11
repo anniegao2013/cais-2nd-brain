@@ -31,6 +31,11 @@ event's semester, and a deleted follow-up is not recreated. Retreats, the big
 little reveal, and E-ball are planned directly, so they are excluded from these
 automatic follow-ups.
 
+A GM event is seeded in every instructional week whose Wednesday is not a
+holiday. Fall Recess also cancels that week's GM even though the recess only
+covers Thursday and Friday. If a week already has a saved GM task, that task is
+kept and the generated GM is skipped so the two do not duplicate each other.
+
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.
 The scraper also records each semester's Classes Begin and Classes End dates,
