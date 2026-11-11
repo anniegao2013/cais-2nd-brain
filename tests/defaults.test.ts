@@ -6,8 +6,13 @@ import {
 } from "../lib/defaults";
 import { categoryIndex } from "../lib/categories";
 import {
+  ANNOUNCE_LEAD_WEEKS,
+  ANNOUNCE_TEXT,
+  SOCIAL_FOLLOW_UPS,
   SOCIAL_POLL_LEAD_WEEKS,
   SOCIAL_POLL_TEXT,
+  START_PLANNING_LEAD_WEEKS,
+  START_PLANNING_TEXT,
   announceId,
   socialPollId,
   startPlanningId,
@@ -22,11 +27,13 @@ describe("default events", () => {
 
   it("seeds every event as open", () => {
     const tasks = Object.values(DEFAULT_STATE.tasks).flat();
-    const socialPolls = DEFAULT_EVENTS.filter((event) =>
+    const socialEvents = DEFAULT_EVENTS.filter((event) =>
       event.tags?.includes("social"),
     ).length;
 
-    expect(tasks).toHaveLength(DEFAULT_EVENTS.length + socialPolls);
+    expect(tasks).toHaveLength(
+      DEFAULT_EVENTS.length + socialEvents * SOCIAL_FOLLOW_UPS.length,
+    );
     expect(tasks.every((task) => task.done === false)).toBe(true);
   });
 
@@ -94,34 +101,58 @@ describe("social event suggestions", () => {
     expect(otherDefaults.every((event) => !event.suggested)).toBe(true);
   });
 
-  it("gives every social suggestion an interest poll four sections earlier", () => {
+  it("gives every social suggestion all three follow-ups at their lead times", () => {
+    const expected = [
+      {
+        id: socialPollId,
+        text: SOCIAL_POLL_TEXT,
+        leadWeeks: SOCIAL_POLL_LEAD_WEEKS,
+      },
+      {
+        id: startPlanningId,
+        text: START_PLANNING_TEXT,
+        leadWeeks: START_PLANNING_LEAD_WEEKS,
+      },
+      {
+        id: announceId,
+        text: ANNOUNCE_TEXT,
+        leadWeeks: ANNOUNCE_LEAD_WEEKS,
+      },
+    ];
+
     for (const suggestion of suggestions) {
       const event = findTask(DEFAULT_STATE, suggestion.id);
-      const poll = findTask(DEFAULT_STATE, socialPollId(suggestion.id));
+      for (const followUp of expected) {
+        const found = findTask(DEFAULT_STATE, followUp.id(suggestion.id));
 
-      expect(poll?.task.text).toBe(SOCIAL_POLL_TEXT);
-      expect(poll?.task.parentId).toBe(suggestion.id);
-      expect(poll?.task.leadWeeks).toBe(SOCIAL_POLL_LEAD_WEEKS);
-      expect(categoryIndex(poll?.categoryId ?? "")).toBe(
-        categoryIndex(event?.categoryId ?? "") - SOCIAL_POLL_LEAD_WEEKS,
-      );
+        expect(found?.task.text).toBe(followUp.text);
+        expect(found?.task.parentId).toBe(suggestion.id);
+        expect(found?.task.leadWeeks).toBe(followUp.leadWeeks);
+        expect(categoryIndex(found?.categoryId ?? "")).toBe(
+          categoryIndex(event?.categoryId ?? "") - followUp.leadWeeks,
+        );
+      }
     }
   });
 
-  it("does not add interest polls to Retreat or the big little reveal", () => {
-    expect(findTask(DEFAULT_STATE, socialPollId("default-12"))).toBeNull();
-    expect(findTask(DEFAULT_STATE, socialPollId("default-18"))).toBeNull();
+  it("does not add follow-ups to Retreat or the big little reveal", () => {
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      expect(findTask(DEFAULT_STATE, followUp.id("default-12"))).toBeNull();
+      expect(findTask(DEFAULT_STATE, followUp.id("default-18"))).toBeNull();
+    }
   });
 
-  it("starts polls without interest or planning follow-ups", () => {
+  it("starts every follow-up without interest", () => {
     for (const suggestion of suggestions) {
-      const poll = findTask(DEFAULT_STATE, socialPollId(suggestion.id));
-
-      expect(poll?.task.interested).toBeUndefined();
       expect(
-        findTask(DEFAULT_STATE, startPlanningId(suggestion.id)),
-      ).toBeNull();
-      expect(findTask(DEFAULT_STATE, announceId(suggestion.id))).toBeNull();
+        findTask(DEFAULT_STATE, socialPollId(suggestion.id))?.task.interested,
+      ).toBeUndefined();
+
+      for (const followUp of SOCIAL_FOLLOW_UPS) {
+        expect(
+          findTask(DEFAULT_STATE, followUp.id(suggestion.id)),
+        ).not.toBeNull();
+      }
     }
   });
 });

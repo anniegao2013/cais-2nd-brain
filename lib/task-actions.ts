@@ -1,8 +1,9 @@
 import { CATEGORIES, categoryIndex, sectionLabel } from "./categories";
+import { weekInfoFromCategoryId } from "./calendar";
 import { sortState } from "./dependencies";
 import { cleanNotes } from "./notes";
 import { clampTaskSpan, moveBounds, shiftTaskSpan } from "./placement";
-import { syncSocialPollSubtasks } from "./social-polls";
+import { syncSocialFollowUps } from "./social-polls";
 import { findTask } from "./tasks";
 import type { TagId } from "./tags";
 import type { AppState, Task, TasksByCategory } from "./types";
@@ -231,7 +232,7 @@ export function toggleTaskTag(
     },
   };
 
-  return syncSocialPollSubtasks(toggled);
+  return syncSocialFollowUps(toggled);
 }
 
 export function updateTaskNotes(
@@ -351,6 +352,15 @@ export function moveTask(
         }
         const newIndex = categoryIndex(categoryId) + delta;
         if (newIndex < 0 || newIndex >= CATEGORIES.length) return null;
+        // Spring lead tasks stop at the first spring week; they never move
+        // back across the semester boundary into the fall.
+        if (
+          weekInfoFromCategoryId(categoryId)?.semesterId === "spring" &&
+          weekInfoFromCategoryId(CATEGORIES[newIndex].id)?.semesterId !==
+            "spring"
+        ) {
+          return null;
+        }
         const shiftedTask = shiftTaskSpan(candidate, delta);
         if (!shiftedTask) return null;
         shifted.set(candidate.id, {

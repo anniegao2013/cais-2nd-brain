@@ -1,5 +1,5 @@
 import { sortState } from "./dependencies";
-import { syncSocialPollSubtasks } from "./social-polls";
+import { syncSocialFollowUps } from "./social-polls";
 import type { TagId } from "./tags";
 import type { AppState, Dependency, TasksByCategory } from "./types";
 import { USC_TIMELINE_HOLIDAYS } from "./usc-holidays";
@@ -180,7 +180,7 @@ function buildDefaultState(): AppState {
       },
     ];
   }
-  return syncSocialPollSubtasks(
+  return syncSocialFollowUps(
     sortState({
       tasks,
       removedDefaults: [],

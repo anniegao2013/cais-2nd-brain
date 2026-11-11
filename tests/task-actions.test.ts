@@ -10,7 +10,11 @@ import {
   updateSubtaskLead,
   updateTaskNotes,
 } from "../lib/task-actions";
-import { socialPollId } from "../lib/social-polls";
+import {
+  announceId,
+  socialPollId,
+  startPlanningId,
+} from "../lib/social-polls";
 import { findTask } from "../lib/tasks";
 import { ids, makeState, makeTask } from "./helpers";
 
@@ -317,7 +321,7 @@ describe("toggleTaskTag", () => {
     expect(removed.tasks["week-1"][0].tags).toEqual(["gm"]);
   });
 
-  it("adds an interest poll when a task becomes a social event", () => {
+  it("adds all three follow-ups when a task becomes a social event", () => {
     const state = makeState({ "week-5": [makeTask("t")] });
 
     const next = toggleTaskTag(state, "week-5", "t", "social");
@@ -330,19 +334,36 @@ describe("toggleTaskTag", () => {
         leadWeeks: 4,
       },
     });
+    expect(findTask(next, startPlanningId("t"))).toMatchObject({
+      categoryId: "week-2",
+      task: {
+        text: "Start planning",
+        parentId: "t",
+        leadWeeks: 3,
+      },
+    });
+    expect(findTask(next, announceId("t"))).toMatchObject({
+      categoryId: "week-3",
+      task: {
+        text: "Announce",
+        parentId: "t",
+        leadWeeks: 2,
+      },
+    });
   });
 
-  it("does not duplicate the poll when another tag is added", () => {
+  it("does not duplicate follow-ups when another tag is added", () => {
     const state = makeState({
       "week-5": [makeTask("t", { tags: ["social"] })],
     });
 
     const next = toggleTaskTag(state, "week-5", "t", "gm");
-    const polls = Object.values(next.tasks)
+    const generatedIds = [socialPollId("t"), startPlanningId("t"), announceId("t")];
+    const generated = Object.values(next.tasks)
       .flat()
-      .filter((task) => task.id === socialPollId("t"));
+      .filter((task) => generatedIds.includes(task.id));
 
-    expect(polls).toHaveLength(1);
+    expect(generated).toHaveLength(3);
   });
 });
 
@@ -476,6 +497,24 @@ describe("moveTask", () => {
 
     expect(ids(next?.tasks["week-9"])).toEqual(["parent"]);
     expect(ids(next?.tasks["week-5"])).toEqual(["sub"]);
+  });
+
+  it("keeps a spring parent's lead tasks inside the spring semester", () => {
+    const state = makeState({
+      "spring-week-1": [
+        makeTask("poll", { parentId: "social", leadWeeks: 1 }),
+      ],
+      "spring-week-2": [makeTask("social")],
+    });
+
+    expect(
+      moveTask(state, "spring-week-2", "social", "spring-week-1"),
+    ).toBeNull();
+
+    const next = moveTask(state, "spring-week-2", "social", "spring-week-3");
+
+    expect(ids(next?.tasks["spring-week-2"])).toEqual(["poll"]);
+    expect(ids(next?.tasks["spring-week-3"])).toEqual(["social"]);
   });
 
   it("keeps a parent from moving before a fixed subtask", () => {

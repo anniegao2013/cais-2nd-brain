@@ -24,6 +24,11 @@ Default tasks and their starter ordering rules live in `lib/defaults.ts`; keep
 each entry's `id` stable since it is used to remember moves, deletions, and
 dependencies.
 
+Tagging an event with the Social events tag automatically adds three subtasks at
+their lead times: "Poll for interest" four weeks before, "Start planning" three
+weeks before, and "Announce" two weeks before. The follow-ups stay within the
+event's semester, and a deleted follow-up is not recreated.
+
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.
 The scraper also records each semester's Classes Begin and Classes End dates,

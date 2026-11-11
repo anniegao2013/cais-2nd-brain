@@ -356,7 +356,7 @@ describe("normalizeStorage", () => {
     expect(retreat?.task.suggested).toBeUndefined();
   });
 
-  it("adds interest polls to social events on older saves", () => {
+  it("adds social follow-ups to social events on older saves", () => {
     const state = normalizeStorage(
       stored({
         tasks: {
@@ -382,6 +382,14 @@ describe("normalizeStorage", () => {
         parentId: "default-22",
         leadWeeks: 4,
       },
+    });
+    expect(findTask(state, startPlanningId("default-22"))).toMatchObject({
+      categoryId: "week-2",
+      task: { text: "Start planning", parentId: "default-22", leadWeeks: 3 },
+    });
+    expect(findTask(state, announceId("default-22"))).toMatchObject({
+      categoryId: "week-3",
+      task: { text: "Announce", parentId: "default-22", leadWeeks: 2 },
     });
   });
 
@@ -409,7 +417,7 @@ describe("normalizeStorage", () => {
     expect(findTask(state, socialPollId("default-22"))).toBeNull();
   });
 
-  it("adds follow-ups for an interested poll on older saves", () => {
+  it("keeps follow-ups when an older save already marked interest", () => {
     const state = normalizeStorage(
       stored({
         tasks: {
@@ -438,6 +446,9 @@ describe("normalizeStorage", () => {
       }),
     );
 
+    expect(
+      findTask(state, socialPollId("default-22"))?.task.interested,
+    ).toBe(true);
     expect(findTask(state, startPlanningId("default-22"))).toMatchObject({
       categoryId: "week-2",
       task: { parentId: "default-22", leadWeeks: 3 },
@@ -446,5 +457,31 @@ describe("normalizeStorage", () => {
       categoryId: "week-3",
       task: { parentId: "default-22", leadWeeks: 2 },
     });
+  });
+
+  it("does not recreate a planning follow-up that was deleted", () => {
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "week-5": [
+            {
+              id: "default-22",
+              text: "Welcome new members",
+              done: false,
+              tags: ["social"],
+            },
+          ],
+        },
+        removedDefaults: [
+          ...ALL_DEFAULT_IDS.filter((id) => id !== "default-22"),
+          startPlanningId("default-22"),
+        ],
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(findTask(state, startPlanningId("default-22"))).toBeNull();
+    expect(findTask(state, socialPollId("default-22"))).not.toBeNull();
+    expect(findTask(state, announceId("default-22"))).not.toBeNull();
   });
 });
