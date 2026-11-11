@@ -127,7 +127,6 @@ const USC_HOLIDAY_EVENTS: DefaultEvent[] = USC_TIMELINE_HOLIDAYS.map(
     id: holiday.id,
     text: holiday.label,
     category: holiday.categoryId,
-    endCategoryId: holiday.endCategoryId,
     isHoliday: true,
   }),
 );

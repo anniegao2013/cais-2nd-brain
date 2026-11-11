@@ -289,6 +289,30 @@ describe("normalizeStorage", () => {
     expect(ids(state.tasks["week-3"])).toContain(holidayId);
   });
 
+  it("moves the Sunday-to-Sunday spring recess into its main week", () => {
+    const holidayId = "usc-holiday-2027-03-14-spring-recess";
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "spring-week-9": [
+            {
+              id: holidayId,
+              text: "Spring Recess",
+              done: false,
+              endCategoryId: "spring-week-10",
+            },
+          ],
+        },
+        removedDefaults: removedExcept(holidayId),
+        dependencies: DEFAULT_DEPENDENCIES,
+      }),
+    );
+
+    expect(ids(state.tasks["spring-week-9"] ?? [])).not.toContain(holidayId);
+    expect(ids(state.tasks["spring-week-10"])).toContain(holidayId);
+    expect(findTask(state, holidayId)?.task.endCategoryId).toBeUndefined();
+  });
+
   it("leaves a deliberately moved non-holiday default where it is", () => {
     const state = normalizeStorage(
       stored({

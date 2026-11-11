@@ -255,15 +255,31 @@ describe("timelineHolidays", () => {
     });
   });
 
-  it("spans a holiday that covers more than one week", () => {
-    const [holiday] = timelineHolidays([
+  it("marks a holiday in the week that holds most of its days", () => {
+    const [early] = timelineHolidays([
       makeEntry("Long Recess", "2026-09-02", "2026-09-10"),
+    ]);
+    const [late] = timelineHolidays([
+      makeEntry("Late Recess", "2026-09-06", "2026-09-10"),
+    ]);
+
+    expect(early).toMatchObject({ categoryId: "week-2" });
+    expect(late).toMatchObject({ categoryId: "week-3" });
+    expect(early).not.toHaveProperty("endCategoryId");
+    expect(late).not.toHaveProperty("endCategoryId");
+  });
+
+  it("puts a Sunday-to-Sunday spring recess in its main week", () => {
+    const [holiday] = timelineHolidays([
+      makeEntry("Spring Recess", "2027-03-14", "2027-03-21"),
     ]);
 
     expect(holiday).toMatchObject({
-      categoryId: "week-2",
-      endCategoryId: "week-3",
+      categoryId: "spring-week-10",
+      startISO: "2027-03-14",
+      endISO: "2027-03-21",
     });
+    expect(holiday).not.toHaveProperty("endCategoryId");
   });
 
   it("builds stable ids from the date and label", () => {
@@ -310,8 +326,7 @@ describe("scraped USC holidays in the default board", () => {
     {
       id: "usc-holiday-2027-03-14-spring-recess",
       label: "Spring Recess",
-      category: "spring-week-9",
-      endCategory: "spring-week-10",
+      category: "spring-week-10",
     },
   ];
 
@@ -321,14 +336,8 @@ describe("scraped USC holidays in the default board", () => {
         id: holiday.id,
         label: holiday.label,
         category: holiday.categoryId,
-        endCategory: holiday.endCategoryId,
       })),
-    ).toEqual(
-      expected.map((holiday) => ({
-        ...holiday,
-        endCategory: holiday.endCategory,
-      })),
-    );
+    ).toEqual(expected);
   });
 
   it.each(expected)("seeds $label in $category", ({ id, label, category }) => {
