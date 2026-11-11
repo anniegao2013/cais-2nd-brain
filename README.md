@@ -4,9 +4,9 @@ A web app for keeping track of tasks and events.
 
 Tasks are grouped into tabs: before the year (the end of the prior spring
 semester and summer), the fall semester, and the spring semester. Each
-semester's numbered weeks are grounded in the USC academic calendar: Week 1
-starts on Classes Begin, the last week ends on Classes End, and each week header
-shows its date range. The final week is shortened when Classes End falls before
+semester's numbered weeks are grounded in the USC academic calendar: Fall Week 1
+and Spring Week 1 start on their Classes Begin dates, the last week ends on
+Classes End, and each week header shows its date range. The final week is shortened when Classes End falls before
 the end of that calendar week. The board opens on the tab containing the current
 week, and earlier weeks in that tab stay behind a control until they are shown.
 A set of default tasks is pre-filled and can be moved to another section or
@@ -27,7 +27,9 @@ dependencies.
 Tagging an event with the Social events tag automatically adds three subtasks at
 their lead times: "Poll for interest" four weeks before, "Start planning" three
 weeks before, and "Announce" two weeks before. The follow-ups stay within the
-event's semester, and a deleted follow-up is not recreated.
+event's semester, and a deleted follow-up is not recreated. Retreats, the big
+little reveal, and E-ball are planned directly, so they are excluded from these
+automatic follow-ups.
 
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.

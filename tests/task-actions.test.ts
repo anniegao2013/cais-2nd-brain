@@ -134,7 +134,7 @@ describe("addTask", () => {
         endCategoryId: "",
       }),
     ).toEqual({
-      error: "“later” is in Week 2, which is after Week 1.",
+      error: "“later” is in Fall Week 2, which is after Fall Week 1.",
     });
   });
 
@@ -152,7 +152,7 @@ describe("addTask", () => {
         endCategoryId: "",
       }),
     ).toEqual({
-      error: "“early” is in Week 1, which is before Week 2.",
+      error: "“early” is in Fall Week 1, which is before Fall Week 2.",
     });
   });
 

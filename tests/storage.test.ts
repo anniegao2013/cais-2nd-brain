@@ -6,6 +6,7 @@ import {
 } from "../lib/defaults";
 import { normalizeStorage } from "../lib/storage";
 import {
+  SOCIAL_FOLLOW_UPS,
   announceId,
   socialPollId,
   startPlanningId,
@@ -415,6 +416,74 @@ describe("normalizeStorage", () => {
       categoryId: "week-3",
       task: { text: "Announce", parentId: "default-22", leadWeeks: 2 },
     });
+  });
+
+  it("prunes saved follow-ups for newly excluded social events", () => {
+    const excluded = ["default-32", "default-36"];
+    const state = normalizeStorage(
+      stored({
+        tasks: {
+          "spring-week-2": [
+            {
+              id: socialPollId("default-36"),
+              text: "Poll for interest",
+              done: false,
+              parentId: "default-36",
+            },
+          ],
+          "spring-week-3": [
+            {
+              id: startPlanningId("default-36"),
+              text: "Start planning",
+              done: false,
+              parentId: "default-36",
+            },
+          ],
+          "spring-week-4": [
+            {
+              id: announceId("default-36"),
+              text: "Announce",
+              done: false,
+              parentId: "default-36",
+            },
+            {
+              id: announceId("default-32"),
+              text: "Announce",
+              done: false,
+              parentId: "default-32",
+            },
+          ],
+          "spring-week-6": [
+            {
+              id: "default-36",
+              text: "E-ball",
+              done: false,
+              tags: ["social"],
+            },
+          ],
+          "spring-week-8": [
+            {
+              id: "default-32",
+              text: "Retreat",
+              done: false,
+              tags: ["social"],
+            },
+          ],
+        },
+        removedDefaults: removedExcept(...excluded),
+        dependencies: [
+          { before: socialPollId("default-36"), after: "default-36" },
+          { before: announceId("default-32"), after: "default-32" },
+        ],
+      }),
+    );
+
+    for (const parentId of excluded) {
+      for (const followUp of SOCIAL_FOLLOW_UPS) {
+        expect(findTask(state, followUp.id(parentId))).toBeNull();
+      }
+    }
+    expect(state.dependencies).toEqual([]);
   });
 
   it("does not recreate an interest poll that was deleted", () => {

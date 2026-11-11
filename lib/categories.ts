@@ -19,7 +19,7 @@ const FALL_CATEGORIES: Category[] = Array.from(
   { length: WEEK_COUNT },
   (_, index) => ({
     id: `week-${index + 1}`,
-    label: `Week ${index + 1}`,
+    label: `Fall Week ${index + 1}`,
   }),
 );
 

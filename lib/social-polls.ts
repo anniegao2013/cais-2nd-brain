@@ -1,5 +1,6 @@
 import { CATEGORIES, categoryIndex } from "./categories";
 import { weekInfoFromCategoryId } from "./calendar";
+import { pruneDependencies } from "./dependencies";
 import { findTask } from "./tasks";
 import type { AppState, Task, TasksByCategory } from "./types";
 
@@ -12,11 +13,13 @@ export const START_PLANNING_LEAD_WEEKS = 3;
 export const ANNOUNCE_TEXT = "Announce";
 export const ANNOUNCE_LEAD_WEEKS = 2;
 
-// Big little reveal and Retreat are large social events that are planned
-// directly, so they do not get automatic follow-ups.
+// Retreats, the big little reveal, and E-ball are large social events that are
+// planned directly, so they do not get automatic follow-ups.
 export const SOCIAL_POLL_EXCLUDED_PARENT_IDS = new Set([
   "default-12", // Retreat
   "default-18", // Big little reveal
+  "default-32", // Spring Retreat
+  "default-36", // E-ball
 ]);
 
 export function socialPollId(parentId: string): string {
@@ -120,37 +123,59 @@ function fillFollowUp(
 // Gives every social event its poll, planning, and announcement subtasks. The
 // ids are derived from the parent so repeated runs stay idempotent, and
 // deleting a generated task records its id in removedDefaults to keep it gone.
+// Follow-ups generated before a parent was excluded are pruned here, along with
+// any ordering edges that referenced them.
 export function syncSocialFollowUps(state: AppState): AppState {
   const tasks = cloneTasks(state.tasks);
+  let changed = false;
+
+  const excludedFollowUpParents = new Map<string, string>();
+  for (const parentId of SOCIAL_POLL_EXCLUDED_PARENT_IDS) {
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      excludedFollowUpParents.set(followUp.id(parentId), parentId);
+    }
+  }
+
+  for (const [categoryId, list] of Object.entries(tasks)) {
+    const kept = list.filter((task) => {
+      const parentId = excludedFollowUpParents.get(task.id);
+      return !(parentId && task.parentId === parentId);
+    });
+    if (kept.length !== list.length) {
+      tasks[categoryId] = kept;
+      changed = true;
+    }
+  }
+
   const presentIds = new Set(
-    Object.values(state.tasks)
+    Object.values(tasks)
       .flat()
       .map((task) => task.id),
   );
   const removedIds = new Set(state.removedDefaults);
-  let changed = false;
+  const socialParents = Object.entries(tasks).flatMap(([categoryId, list]) =>
+    list
+      .filter(isSocialEvent)
+      .map((task) => ({ task, categoryId })),
+  );
 
-  for (const [parentCategoryId, list] of Object.entries(state.tasks)) {
-    for (const parent of list) {
-      if (!isSocialEvent(parent)) continue;
-
-      for (const followUp of SOCIAL_FOLLOW_UPS) {
-        if (
-          fillFollowUp(
-            tasks,
-            presentIds,
-            removedIds,
-            { task: parent, categoryId: parentCategoryId },
-            followUp,
-          )
-        ) {
-          changed = true;
-        }
+  for (const event of socialParents) {
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      if (
+        fillFollowUp(tasks, presentIds, removedIds, event, followUp)
+      ) {
+        changed = true;
       }
     }
   }
 
-  return changed ? { ...state, tasks } : state;
+  if (!changed) return state;
+
+  return {
+    ...state,
+    tasks,
+    dependencies: pruneDependencies(state.dependencies, tasks),
+  };
 }
 
 // Interest only records whether the group wants the event; the follow-up tasks

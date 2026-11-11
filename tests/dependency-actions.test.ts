@@ -54,13 +54,13 @@ describe("addDependency", () => {
   it("rejects a predecessor that runs past the task", () => {
     const result = addDependency(baseState(), "a", "d", "");
 
-    expect(result.error).toContain("“d” runs through Week 3");
+    expect(result.error).toContain("“d” runs through Fall Week 3");
   });
 
   it("rejects a successor that comes before the task", () => {
     const result = addDependency(baseState(), "d", "", "a");
 
-    expect(result.error).toContain("“d” runs through Week 3");
+    expect(result.error).toContain("“d” runs through Fall Week 3");
   });
 
   it("rejects duplicate rules", () => {

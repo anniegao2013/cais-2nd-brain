@@ -23,7 +23,8 @@ function tabSummary(tabId: TimelineTabId): string {
   }
 
   const weekCount = tabId === "fall" ? WEEK_COUNT : SPRING_WEEK_COUNT;
-  return `Weeks 1–${weekCount} run ${semesterRangeLabel(tabId)}.`;
+  const prefix = tabId === "fall" ? "Fall weeks" : "Spring weeks";
+  return `${prefix} 1–${weekCount} run ${semesterRangeLabel(tabId)}.`;
 }
 
 export default function TaskBoard() {

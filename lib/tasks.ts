@@ -99,7 +99,7 @@ export function spanLabel(
   const start = weekInfoFromCategoryId(startCategoryId);
   const end = weekInfoFromCategoryId(endCategoryId);
   if (start && end && start.semesterId === end.semesterId) {
-    const prefix = start.semesterId === "fall" ? "Weeks" : "Spring weeks";
+    const prefix = start.semesterId === "fall" ? "Fall weeks" : "Spring weeks";
     return `${prefix} ${start.week}–${end.week}`;
   }
   return `${sectionLabel(startCategoryId)} → ${sectionLabel(endCategoryId)}`;

@@ -64,7 +64,7 @@ describe("syncSocialFollowUps", () => {
     expect(next).toBe(state);
   });
 
-  it("excludes Retreat and the big little reveal even when tagged social", () => {
+  it("excludes Retreat, the big little reveal, Spring Retreat, and E-ball even when tagged social", () => {
     const state = makeState({
       "week-8": [
         makeTask("default-12", { text: "Retreat", tags: ["social"] }),
@@ -75,14 +75,69 @@ describe("syncSocialFollowUps", () => {
           tags: ["social"],
         }),
       ],
+      "spring-week-8": [
+        makeTask("default-32", { text: "Retreat", tags: ["social"] }),
+      ],
+      "spring-week-6": [
+        makeTask("default-36", { text: "E-ball", tags: ["social"] }),
+      ],
     });
 
     const next = syncSocialFollowUps(state);
 
-    for (const followUp of SOCIAL_FOLLOW_UPS) {
-      expect(findTask(next, followUp.id("default-12"))).toBeNull();
-      expect(findTask(next, followUp.id("default-18"))).toBeNull();
+    for (const parentId of [
+      "default-12",
+      "default-18",
+      "default-32",
+      "default-36",
+    ]) {
+      for (const followUp of SOCIAL_FOLLOW_UPS) {
+        expect(findTask(next, followUp.id(parentId))).toBeNull();
+      }
     }
+  });
+
+  it("prunes follow-ups and dependency edges generated before an exclusion", () => {
+    const parentId = "default-36";
+    const state = makeState(
+      {
+        "spring-week-2": [
+          makeTask(socialPollId(parentId), {
+            text: SOCIAL_POLL_TEXT,
+            parentId,
+          }),
+        ],
+        "spring-week-3": [
+          makeTask(startPlanningId(parentId), {
+            text: START_PLANNING_TEXT,
+            parentId,
+          }),
+        ],
+        "spring-week-4": [
+          makeTask(announceId(parentId), {
+            text: ANNOUNCE_TEXT,
+            parentId,
+          }),
+        ],
+        "spring-week-6": [
+          makeTask(parentId, { text: "E-ball", tags: ["social"] }),
+        ],
+      },
+      {
+        dependencies: [
+          { before: socialPollId(parentId), after: parentId },
+          { before: parentId, after: announceId(parentId) },
+          { before: "keep", after: "keep" },
+        ],
+      },
+    );
+
+    const next = syncSocialFollowUps(state);
+
+    for (const followUp of SOCIAL_FOLLOW_UPS) {
+      expect(findTask(next, followUp.id(parentId))).toBeNull();
+    }
+    expect(next.dependencies).toEqual([]);
   });
 
   it("is idempotent", () => {
