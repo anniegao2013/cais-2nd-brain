@@ -1,4 +1,5 @@
 import { CATEGORIES, categoryIndex, sectionLabel } from "@/lib/categories";
+import { isGmEvent } from "@/lib/gm-events";
 import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
@@ -51,9 +52,12 @@ export function TaskRow({
     ? undefined
     : findTask(board.state, socialPollId(task.id))?.task;
   const hasInterest = Boolean(childPoll?.interested);
-  const gmDate = task.tags?.includes("gm")
-    ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
-    : null;
+  const gmEvent = isGmEvent(task);
+  const parentIsGm = parent ? isGmEvent(parent) : false;
+  const gmDate =
+    gmEvent || task.tags?.includes("gm")
+      ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
+      : null;
   const rowKey = `${task.id}:${categoryId}`;
   const descriptionId = `description-${task.id}-${categoryId}`;
   const editorId = `editor-${task.id}-${categoryId}`;
@@ -180,11 +184,19 @@ export function TaskRow({
               board.setSubtaskCategoryId(startCategoryId);
               board.cancelEditingNotes();
             }}
-            aria-label={`Add a subtask to "${task.text}"`}
+            aria-label={
+              gmEvent
+                ? `Add a task to "${task.text}"`
+                : `Add a subtask to "${task.text}"`
+            }
             aria-expanded={formOpen}
-            className="flex size-6 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+            className={
+              gmEvent
+                ? "h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100"
+                : "flex size-6 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+            }
           >
-            +
+            {gmEvent ? "Add task" : "+"}
           </button>
         )}
         {isStart && (
@@ -318,7 +330,7 @@ export function TaskRow({
 
       {parent && (
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
-          <span>Subtask of</span>
+          <span>{parentIsGm ? "Task for" : "Subtask of"}</span>
           <button
             type="button"
             onClick={() => board.goToParent(parent.id)}

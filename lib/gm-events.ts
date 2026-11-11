@@ -4,8 +4,6 @@ import {
   weekRangeForSemester,
   weekWednesdayISO,
 } from "./calendar";
-import type { TagId } from "./tags";
-import type { Task } from "./types";
 import { USC_TIMELINE_HOLIDAYS, type TimelineHoliday } from "./usc-holidays";
 
 export const GM_TEXT = "GM";
@@ -18,17 +16,16 @@ export type WeeklyGmEvent = {
   id: string;
   text: string;
   category: string;
-  tags: TagId[];
 };
 
 export function gmEventId(categoryId: string): string {
   return `gm-${categoryId}`;
 }
 
-// A saved GM task, as opposed to generated events such as "Start collecting
-// dues" that also carry the gm tag.
-export function isGmTask(task: Pick<Task, "text">): boolean {
-  return task.text.trim().toUpperCase() === GM_TEXT;
+const GM_EVENT_ID_PATTERN = /^gm-(?:spring-)?week-\d+$/;
+
+export function isGmEvent(task: { id: string }): boolean {
+  return GM_EVENT_ID_PATTERN.test(task.id);
 }
 
 function coversDate(holiday: TimelineHoliday, iso: string): boolean {
@@ -71,7 +68,6 @@ export function weeklyGmEvents(
         id: gmEventId(categoryId),
         text: GM_TEXT,
         category: categoryId,
-        tags: ["gm"],
       });
     }
   }

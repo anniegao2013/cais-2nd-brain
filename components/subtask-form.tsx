@@ -1,5 +1,6 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { CATEGORIES, categoryIndex } from "@/lib/categories";
+import { isGmEvent } from "@/lib/gm-events";
 import type { Task } from "@/lib/types";
 
 export function SubtaskForm({
@@ -11,6 +12,9 @@ export function SubtaskForm({
   parentTask: Task;
   startCategoryId: string;
 }) {
+  const gmParent = isGmEvent(parentTask);
+  const itemLabel = gmParent ? "task" : "subtask";
+
   return (
     <form
       onSubmit={(event) => {
@@ -22,15 +26,15 @@ export function SubtaskForm({
       <input
         value={board.subtaskText}
         onChange={(event) => board.setSubtaskText(event.target.value)}
-        placeholder="Add a subtask…"
-        aria-label={`Subtask for ${parentTask.text}`}
+        placeholder={`Add a ${itemLabel}…`}
+        aria-label={`${gmParent ? "Task" : "Subtask"} for ${parentTask.text}`}
         autoComplete="off"
         className="h-8 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600"
       />
       <select
         value={board.subtaskCategoryId}
         onChange={(event) => board.setSubtaskCategoryId(event.target.value)}
-        aria-label="Subtask section"
+        aria-label={gmParent ? "Task section" : "Subtask section"}
         className="h-8 rounded-md border border-zinc-200 bg-transparent px-2 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
       >
         {CATEGORIES.map((option, optionIndex) => (

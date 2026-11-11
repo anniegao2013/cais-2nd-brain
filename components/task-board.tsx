@@ -118,14 +118,15 @@ export default function TaskBoard() {
         already listed and can be moved to another section. Tasks can also span
         several weeks: pick an end section when adding one, or change it while
         editing, and the task will be listed under every week it covers. Use +
-        to add a subtask in the same or an earlier section; open a subtask to
-        edit its lead time. Click ▸ or the task title to read the description,
-        and use Edit to change the title, description, tags, span, and ordering
-        rules. Ordering can also be set when adding an event. Use the tabs to
-        switch between the pre-year list and each semester, and the filter bar
-        to show only tasks with selected tags. Tasks marked Suggestion are just
-        ideas for social events, not events that are already planned: keep,
-        move, rename, or delete them as you like.
+        to add a subtask in the same or an earlier section; GM events use
+        Add task instead. Open a subtask to edit its lead time. Click ▸ or the
+        task title to read the description, and use Edit to change the title,
+        description, tags, span, and ordering rules. Ordering can also be set
+        when adding an event. Use the tabs to switch between the pre-year list
+        and each semester, and the filter bar to show only tasks with selected
+        tags. Tasks marked Suggestion are just ideas for social events, not
+        events that are already planned: keep, move, rename, or delete them as
+        you like.
       </p>
 
       <TagFilter board={board} />

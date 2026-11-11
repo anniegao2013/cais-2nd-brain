@@ -5,7 +5,6 @@ import {
   DEFAULT_STATE,
 } from "./defaults";
 import { isDependency, pruneDependencies } from "./dependencies";
-import { gmEventId, isGmTask } from "./gm-events";
 import { sanitizeSubtaskPlacement } from "./placement";
 import { syncSocialFollowUps } from "./social-polls";
 import { isTagId, type TagId } from "./tags";
@@ -104,35 +103,12 @@ export function normalizeStorage(raw: string): AppState {
     cleaned[categoryId] = [...(cleaned[categoryId] ?? []), task];
   }
 
-  // Existing saved GM tasks are the source of truth for their week. Remove any
-  // generated GM default in the same week so the board does not show duplicates.
-  const savedGmCategoryIds = new Set<string>();
-  for (const [categoryId, list] of Object.entries(cleaned)) {
-    if (
-      list.some((task) => task.id !== gmEventId(categoryId) && isGmTask(task))
-    ) {
-      savedGmCategoryIds.add(categoryId);
-    }
-  }
-  for (const categoryId of savedGmCategoryIds) {
-    const generatedId = gmEventId(categoryId);
-    cleaned[categoryId] = (cleaned[categoryId] ?? []).filter(
-      (task) => task.id !== generatedId,
-    );
-  }
-
   // Default events always exist unless they were deliberately removed.
   const presentIds = new Set(
     Object.values(cleaned).flatMap((list) => list.map((task) => task.id)),
   );
   for (const event of DEFAULT_EVENTS) {
     if (removedDefaults.includes(event.id) || presentIds.has(event.id)) continue;
-    if (
-      event.id === gmEventId(event.category) &&
-      savedGmCategoryIds.has(event.category)
-    ) {
-      continue;
-    }
     if (
       event.parentId &&
       (!presentIds.has(event.parentId) ||

@@ -4,7 +4,7 @@ import {
   SPRING_SEMESTER,
   categoryIdForWeek,
 } from "../lib/calendar";
-import { GM_TEXT, gmEventId, weeklyGmEvents } from "../lib/gm-events";
+import { GM_TEXT, gmEventId, isGmEvent, weeklyGmEvents } from "../lib/gm-events";
 import { USC_TIMELINE_HOLIDAYS } from "../lib/usc-holidays";
 
 function gmCategories(): string[] {
@@ -71,14 +71,21 @@ describe("weeklyGmEvents", () => {
     expect(gmCategories()).not.toContain("week-7");
   });
 
-  it("tags every GM event and derives its id from the week", () => {
+  it("keeps every GM event untagged", () => {
     for (const event of weeklyGmEvents()) {
       expect(event).toMatchObject({
         id: gmEventId(event.category),
         text: GM_TEXT,
-        tags: ["gm"],
       });
+      expect("tags" in event).toBe(false);
     }
+  });
+
+  it("recognizes generated GM events by their stable id", () => {
+    expect(isGmEvent({ id: gmEventId("week-1") })).toBe(true);
+    expect(isGmEvent({ id: gmEventId("spring-week-12") })).toBe(true);
+    expect(isGmEvent({ id: "default-30" })).toBe(false);
+    expect(isGmEvent({ id: "custom-gm" })).toBe(false);
   });
 
   it("cancels a week whose Wednesday is covered by any holiday", () => {
