@@ -1,6 +1,13 @@
-import { CATEGORIES, categoryIndex, sectionLabel } from "./categories";
+import {
+  CATEGORIES,
+  GM_IDEAS_CATEGORY_ID,
+  categoryIndex,
+  isGmIdeasCategory,
+  sectionLabel,
+} from "./categories";
 import { weekInfoFromCategoryId } from "./calendar";
 import { sortState } from "./dependencies";
+import { isGmEvent } from "./gm-events";
 import { cleanNotes } from "./notes";
 import { clampTaskSpan, moveBounds, shiftTaskSpan } from "./placement";
 import { syncSocialFollowUps } from "./social-polls";
@@ -24,6 +31,20 @@ export function addTask(
 ): TaskActionResult {
   const text = input.text.trim();
   if (!text) return {};
+
+  // Ideas are a plain backlog: ordering and spans do not apply.
+  if (isGmIdeasCategory(categoryId)) {
+    const idea: Task = { id: crypto.randomUUID(), text, done: false };
+    return {
+      state: {
+        ...state,
+        tasks: {
+          ...state.tasks,
+          [categoryId]: [...(state.tasks[categoryId] ?? []), idea],
+        },
+      },
+    };
+  }
 
   const { afterId, beforeId } = input;
   const endId = input.endCategoryId || categoryId;
@@ -121,6 +142,9 @@ export function addSubtask(
 
   const parent = findTask(state, parentId);
   if (!parent) return null;
+  // Ideas do not have subtasks; assign them to a GM instead.
+  if (isGmIdeasCategory(parent.categoryId)) return null;
+  if (isGmIdeasCategory(categoryId)) return null;
   if (categoryIndex(categoryId) > categoryIndex(parent.categoryId)) {
     return null;
   }
@@ -325,6 +349,10 @@ export function moveTask(
   toCategoryId: string,
 ): AppState | null {
   if (fromCategoryId === toCategoryId) return null;
+  // The GM ideas backlog is managed through assign/return, not free moves.
+  if (isGmIdeasCategory(fromCategoryId) || isGmIdeasCategory(toCategoryId)) {
+    return null;
+  }
 
   const task = (state.tasks[fromCategoryId] ?? []).find(
     (candidate) => candidate.id === taskId,
@@ -383,6 +411,73 @@ export function moveTask(
   for (const { categoryId, task: subtask } of shifted.values()) {
     tasks[categoryId] = [...(tasks[categoryId] ?? []), subtask];
   }
+
+  return sortState({ ...state, tasks });
+}
+
+// Moving an idea out of the backlog makes it a child task of the chosen GM so
+// it appears alongside agenda items for that meeting.
+export function assignGmIdea(
+  state: AppState,
+  ideaId: string,
+  gmEventId: string,
+): AppState | null {
+  const ideaLocation = findTask(state, ideaId);
+  if (!ideaLocation || !isGmIdeasCategory(ideaLocation.categoryId)) {
+    return null;
+  }
+
+  const gmLocation = findTask(state, gmEventId);
+  if (!gmLocation || !isGmEvent(gmLocation.task)) return null;
+
+  const tasks: TasksByCategory = {};
+  for (const [categoryId, list] of Object.entries(state.tasks)) {
+    tasks[categoryId] = list.filter((task) => task.id !== ideaId);
+  }
+
+  const assigned: Task = {
+    ...ideaLocation.task,
+    parentId: gmEventId,
+    gmIdea: true,
+  };
+  delete assigned.endCategoryId;
+  delete assigned.leadWeeks;
+
+  tasks[gmLocation.categoryId] = [
+    ...(tasks[gmLocation.categoryId] ?? []),
+    assigned,
+  ];
+
+  return sortState({ ...state, tasks });
+}
+
+// Sends an assigned idea back to the backlog without disturbing regular tasks
+// that were added directly to the GM.
+export function returnGmIdea(
+  state: AppState,
+  taskId: string,
+): AppState | null {
+  const location = findTask(state, taskId);
+  if (!location?.task.gmIdea || !location.task.parentId) return null;
+
+  const parent = findTask(state, location.task.parentId);
+  if (!parent || !isGmEvent(parent.task)) return null;
+
+  const tasks: TasksByCategory = {};
+  for (const [categoryId, list] of Object.entries(state.tasks)) {
+    tasks[categoryId] = list.filter((task) => task.id !== taskId);
+  }
+
+  const idea: Task = { ...location.task };
+  delete idea.parentId;
+  delete idea.gmIdea;
+  delete idea.endCategoryId;
+  delete idea.leadWeeks;
+
+  tasks[GM_IDEAS_CATEGORY_ID] = [
+    ...(tasks[GM_IDEAS_CATEGORY_ID] ?? []),
+    idea,
+  ];
 
   return sortState({ ...state, tasks });
 }

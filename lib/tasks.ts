@@ -1,4 +1,9 @@
-import { CATEGORIES, categoryIndex, sectionLabel } from "./categories";
+import {
+  CATEGORIES,
+  categoryIndex,
+  isGmIdeasCategory,
+  sectionLabel,
+} from "./categories";
 import { weekInfoFromCategoryId } from "./calendar";
 import type { AppState, Task, TaskOccurrence } from "./types";
 
@@ -18,6 +23,15 @@ export function taskOccurrences(
   state: AppState,
   categoryId: string,
 ): TaskOccurrence[] {
+  // The GM ideas backlog has no dates or spans: every idea is one row.
+  if (isGmIdeasCategory(categoryId)) {
+    return (state.tasks[categoryId] ?? []).map((task) => ({
+      task,
+      startCategoryId: categoryId,
+      isStart: true,
+    }));
+  }
+
   const sectionIndex = categoryIndex(categoryId);
   const occurrences: TaskOccurrence[] = [];
 

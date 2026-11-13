@@ -1,4 +1,9 @@
-import { CATEGORIES, categoryIndex, sectionLabel } from "@/lib/categories";
+import {
+  CATEGORIES,
+  categoryIndex,
+  isGmIdeasCategory,
+  sectionLabel,
+} from "@/lib/categories";
 import { isGmEvent } from "@/lib/gm-events";
 import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
@@ -43,6 +48,10 @@ export function TaskRow({
   const overdueRow = isOverdue
     ? "my-1 rounded-md border border-red-300 bg-red-50/60 px-2.5 dark:border-red-400/40 dark:bg-red-400/10"
     : "";
+  const gmIdeaRow = isGmIdeasCategory(startCategoryId)
+    ? "my-1 rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 dark:border-indigo-400/40 dark:bg-indigo-400/5"
+    : "";
+  const isGmIdea = isGmIdeasCategory(startCategoryId);
   const parentMaxIndex = parentLocation
     ? categoryIndex(parentLocation.categoryId)
     : 0;
@@ -54,6 +63,7 @@ export function TaskRow({
   const hasInterest = Boolean(childPoll?.interested);
   const gmEvent = isGmEvent(task);
   const parentIsGm = parent ? isGmEvent(parent) : false;
+  const assignedIdea = Boolean(task.gmIdea) && parentIsGm;
   const gmDate =
     gmEvent || task.tags?.includes("gm")
       ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
@@ -88,7 +98,7 @@ export function TaskRow({
   return (
     <li
       id={`task-${task.id}-${categoryId}`}
-      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow} ${overdueRow}`}
+      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow} ${overdueRow} ${gmIdeaRow}`}
     >
       <div className="group flex flex-wrap items-center gap-2">
         {task.isHoliday ? (
@@ -171,7 +181,25 @@ export function TaskRow({
         >
           {editing ? "Done" : "Edit"}
         </button>
-        {isStart && !isSubtask && (
+        {isGmIdea && (
+          <select
+            value=""
+            onChange={(event) => {
+              const gmEventId = event.target.value;
+              if (gmEventId) board.assignGmIdea(task.id, gmEventId);
+            }}
+            aria-label={`Assign "${task.text}" to a GM`}
+            className="h-7 shrink-0 rounded-md border border-indigo-200 bg-white px-1.5 text-xs text-indigo-700 transition-colors hover:border-indigo-400 focus:border-indigo-400 focus:outline-none dark:border-indigo-400/40 dark:bg-zinc-900 dark:text-indigo-300 dark:focus:border-indigo-400"
+          >
+            <option value="">Assign to GM…</option>
+            {board.gmEventOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {isStart && !isSubtask && !isGmIdea && (
           <button
             type="button"
             onClick={() => {
@@ -199,7 +227,7 @@ export function TaskRow({
             {gmEvent ? "Add task" : "+"}
           </button>
         )}
-        {isStart && (
+        {isStart && !isGmIdea && (
           <select
             value={startCategoryId}
             onChange={(event) =>
@@ -238,7 +266,9 @@ export function TaskRow({
         hasInterest ||
         gmDate ||
         task.isHoliday ||
-        isOverdue) && (
+        isOverdue ||
+        isGmIdea ||
+        assignedIdea) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
           {isOverdue && (
             <span
@@ -263,6 +293,28 @@ export function TaskRow({
             >
               Suggestion
             </span>
+          )}
+          {(isGmIdea || assignedIdea) && (
+            <span
+              title={
+                assignedIdea
+                  ? "This idea is assigned to a GM"
+                  : "Assign this idea to a GM to schedule it"
+              }
+              className="rounded-full border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700 dark:border-indigo-400/60 dark:bg-indigo-400/15 dark:text-indigo-300"
+            >
+              GM idea
+            </span>
+          )}
+          {assignedIdea && (
+            <button
+              type="button"
+              onClick={() => board.returnGmIdea(task.id)}
+              aria-label={`Return "${task.text}" to GM ideas`}
+              className="rounded-full border border-indigo-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700 transition-colors hover:border-indigo-400 hover:bg-indigo-100 dark:border-indigo-400/40 dark:text-indigo-300 dark:hover:bg-indigo-400/15"
+            >
+              ↩ Return to ideas
+            </button>
           )}
           {showInterestToggle && (
             <button

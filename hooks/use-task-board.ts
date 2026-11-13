@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { CATEGORIES } from "@/lib/categories";
+import { gmDateLabel } from "@/lib/calendar";
+import { isGmEvent } from "@/lib/gm-events";
 import {
   getServerSnapshot,
   getSnapshot,
@@ -64,6 +66,20 @@ export function useTaskBoard() {
       text: task.text,
       label: `${task.text} · ${category.label}`,
     })),
+  );
+
+  const gmEventOptions = CATEGORIES.flatMap((category) =>
+    (state.tasks[category.id] ?? [])
+      .filter((task) => isGmEvent(task))
+      .map((task) => {
+        const dateLabel = gmDateLabel(category.id);
+        return {
+          id: task.id,
+          label: dateLabel
+            ? `${category.label} · ${dateLabel}`
+            : category.label,
+        };
+      }),
   );
 
   function matchesFilter(task: Task) {
@@ -294,6 +310,16 @@ export function useTaskBoard() {
     if (next) setState(next);
   }
 
+  function assignGmIdea(ideaId: string, gmEventId: string) {
+    const next = taskActions.assignGmIdea(state, ideaId, gmEventId);
+    if (next) setState(next);
+  }
+
+  function returnGmIdea(taskId: string) {
+    const next = taskActions.returnGmIdea(state, taskId);
+    if (next) setState(next);
+  }
+
   const tasks = allTasks(state);
   const totalTaskCount = tasks.length;
   const filteredTaskCount = tasks.filter(matchesFilter).length;
@@ -302,6 +328,7 @@ export function useTaskBoard() {
     state,
     tags: TAGS,
     taskOptions,
+    gmEventOptions,
     activeTags,
     totalTaskCount,
     filteredTaskCount,
@@ -347,6 +374,8 @@ export function useTaskBoard() {
     toggleTask,
     removeTask,
     moveTask,
+    assignGmIdea,
+    returnGmIdea,
   };
 }
 
