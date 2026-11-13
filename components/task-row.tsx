@@ -1,9 +1,15 @@
-import { CATEGORIES, categoryIndex, sectionLabel } from "@/lib/categories";
+import {
+  CATEGORIES,
+  categoryIndex,
+  isGmIdeasCategory,
+  sectionLabel,
+} from "@/lib/categories";
+import { isGmEvent } from "@/lib/gm-events";
 import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
 import type { TaskBoardController } from "@/hooks/use-task-board";
-import { gmDateLabel } from "@/lib/calendar";
+import { gmDateLabel, monthLabel } from "@/lib/calendar";
 import { isInterestPoll, socialPollId } from "@/lib/social-polls";
 import { SubtaskForm } from "./subtask-form";
 import { TaskDescription } from "./task-description";
@@ -42,6 +48,10 @@ export function TaskRow({
   const overdueRow = isOverdue
     ? "my-1 rounded-md border border-red-300 bg-red-50/60 px-2.5 dark:border-red-400/40 dark:bg-red-400/10"
     : "";
+  const gmIdeaRow = isGmIdeasCategory(startCategoryId)
+    ? "my-1 rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 dark:border-indigo-400/40 dark:bg-indigo-400/5"
+    : "";
+  const isGmIdea = isGmIdeasCategory(startCategoryId);
   const parentMaxIndex = parentLocation
     ? categoryIndex(parentLocation.categoryId)
     : 0;
@@ -51,9 +61,32 @@ export function TaskRow({
     ? undefined
     : findTask(board.state, socialPollId(task.id))?.task;
   const hasInterest = Boolean(childPoll?.interested);
-  const gmDate = task.tags?.includes("gm")
-    ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
-    : null;
+  const gmEvent = isGmEvent(task);
+  const parentIsGm = parent ? isGmEvent(parent) : false;
+  const assignedIdea = Boolean(task.gmIdea) && parentIsGm;
+  const suggestedMonth = task.gmSuggestedMonth;
+  const suggestedGmOptions = suggestedMonth
+    ? board.gmEventOptions.filter(
+        (option) => option.month === suggestedMonth,
+      )
+    : [];
+  const otherGmOptions = suggestedMonth
+    ? board.gmEventOptions.filter(
+        (option) => option.month !== suggestedMonth,
+      )
+    : board.gmEventOptions;
+  const monthOptions =
+    suggestedMonth &&
+    !board.gmMonthOptions.some((option) => option.value === suggestedMonth)
+      ? [
+          ...board.gmMonthOptions,
+          { value: suggestedMonth, label: monthLabel(suggestedMonth) },
+        ]
+      : board.gmMonthOptions;
+  const gmDate =
+    gmEvent || task.tags?.includes("gm")
+      ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
+      : null;
   const rowKey = `${task.id}:${categoryId}`;
   const descriptionId = `description-${task.id}-${categoryId}`;
   const editorId = `editor-${task.id}-${categoryId}`;
@@ -84,7 +117,7 @@ export function TaskRow({
   return (
     <li
       id={`task-${task.id}-${categoryId}`}
-      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow} ${overdueRow}`}
+      className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow} ${overdueRow} ${gmIdeaRow}`}
     >
       <div className="group flex flex-wrap items-center gap-2">
         {task.isHoliday ? (
@@ -167,7 +200,64 @@ export function TaskRow({
         >
           {editing ? "Done" : "Edit"}
         </button>
-        {isStart && !isSubtask && (
+        {isGmIdea && (
+          <>
+            <select
+              value={suggestedMonth ?? ""}
+              onChange={(event) =>
+                board.setGmIdeaSuggestedMonth(task.id, event.target.value)
+              }
+              aria-label={`Suggested month for "${task.text}"`}
+              title="Suggest when this GM idea should be scheduled"
+              className="h-7 shrink-0 rounded-md border border-indigo-200 bg-white px-1.5 text-xs text-indigo-700 transition-colors hover:border-indigo-400 focus:border-indigo-400 focus:outline-none dark:border-indigo-400/40 dark:bg-zinc-900 dark:text-indigo-300 dark:focus:border-indigo-400"
+            >
+              <option value="">Suggest timing…</option>
+              {monthOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value=""
+              onChange={(event) => {
+                const gmEventId = event.target.value;
+                if (gmEventId) board.assignGmIdea(task.id, gmEventId);
+              }}
+              aria-label={`Assign "${task.text}" to a GM`}
+              className="h-7 shrink-0 rounded-md border border-indigo-200 bg-white px-1.5 text-xs text-indigo-700 transition-colors hover:border-indigo-400 focus:border-indigo-400 focus:outline-none dark:border-indigo-400/40 dark:bg-zinc-900 dark:text-indigo-300 dark:focus:border-indigo-400"
+            >
+              <option value="">Assign to GM…</option>
+              {suggestedMonth && suggestedGmOptions.length > 0 ? (
+                <>
+                  <optgroup label={`Suggested: ${monthLabel(suggestedMonth)}`}>
+                    {suggestedGmOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {otherGmOptions.length > 0 && (
+                    <optgroup label="Other GM weeks">
+                      {otherGmOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : (
+                otherGmOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))
+              )}
+            </select>
+          </>
+        )}
+        {isStart && !isSubtask && !isGmIdea && (
           <button
             type="button"
             onClick={() => {
@@ -180,14 +270,22 @@ export function TaskRow({
               board.setSubtaskCategoryId(startCategoryId);
               board.cancelEditingNotes();
             }}
-            aria-label={`Add a subtask to "${task.text}"`}
+            aria-label={
+              gmEvent
+                ? `Add a task to "${task.text}"`
+                : `Add a subtask to "${task.text}"`
+            }
             aria-expanded={formOpen}
-            className="flex size-6 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+            className={
+              gmEvent
+                ? "h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100"
+                : "flex size-6 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+            }
           >
-            +
+            {gmEvent ? "Add task" : "+"}
           </button>
         )}
-        {isStart && (
+        {isStart && !isGmIdea && (
           <select
             value={startCategoryId}
             onChange={(event) =>
@@ -226,7 +324,10 @@ export function TaskRow({
         hasInterest ||
         gmDate ||
         task.isHoliday ||
-        isOverdue) && (
+        isOverdue ||
+        isGmIdea ||
+        assignedIdea ||
+        task.gmSuggestedMonth) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
           {isOverdue && (
             <span
@@ -251,6 +352,36 @@ export function TaskRow({
             >
               Suggestion
             </span>
+          )}
+          {(isGmIdea || assignedIdea) && (
+            <span
+              title={
+                assignedIdea
+                  ? "This idea is assigned to a GM"
+                  : "Assign this idea to a GM to schedule it"
+              }
+              className="rounded-full border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700 dark:border-indigo-400/60 dark:bg-indigo-400/15 dark:text-indigo-300"
+            >
+              GM idea
+            </span>
+          )}
+          {task.gmSuggestedMonth && (isGmIdea || assignedIdea) && (
+            <span
+              title="Suggested timing for this GM idea"
+              className="rounded-full border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700 dark:border-indigo-400/60 dark:bg-indigo-400/15 dark:text-indigo-300"
+            >
+              Suggested: {monthLabel(task.gmSuggestedMonth)}
+            </span>
+          )}
+          {assignedIdea && (
+            <button
+              type="button"
+              onClick={() => board.returnGmIdea(task.id)}
+              aria-label={`Return "${task.text}" to GM ideas`}
+              className="rounded-full border border-indigo-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700 transition-colors hover:border-indigo-400 hover:bg-indigo-100 dark:border-indigo-400/40 dark:text-indigo-300 dark:hover:bg-indigo-400/15"
+            >
+              ↩ Return to ideas
+            </button>
           )}
           {showInterestToggle && (
             <button
@@ -318,7 +449,7 @@ export function TaskRow({
 
       {parent && (
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
-          <span>Subtask of</span>
+          <span>{parentIsGm ? "Task for" : "Subtask of"}</span>
           <button
             type="button"
             onClick={() => board.goToParent(parent.id)}

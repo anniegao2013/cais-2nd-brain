@@ -13,6 +13,10 @@ export type Task = {
   // Marks a starter idea rather than a real task. Suggestions get their own
   // styling in the timeline until they are deleted.
   suggested?: boolean;
+  // Set when an idea from the GM ideas backlog has been assigned to a GM.
+  gmIdea?: boolean;
+  // Optional YYYY-MM suggestion for when an idea should be discussed.
+  gmSuggestedMonth?: string;
   // Set on an interest poll when enough people said they want the event.
   interested?: boolean;
   // USC academic-calendar dates are shown as reference events, not tasks, so

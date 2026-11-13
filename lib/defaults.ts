@@ -1,5 +1,6 @@
 import { SPRING_SEMESTER, categoryIdForDate } from "./calendar";
 import { sortState } from "./dependencies";
+import { weeklyGmEvents } from "./gm-events";
 import { syncSocialFollowUps } from "./social-polls";
 import type { TagId } from "./tags";
 import type { AppState, Dependency, TasksByCategory } from "./types";
@@ -232,8 +233,13 @@ const USC_HOLIDAY_EVENTS: DefaultEvent[] = USC_TIMELINE_HOLIDAYS.map(
   }),
 );
 
+// Weekly general meetings, generated from the calendar so holiday weeks stay
+// empty without hand-maintaining the list.
+const GM_EVENTS: DefaultEvent[] = weeklyGmEvents();
+
 export const DEFAULT_EVENTS: DefaultEvent[] = [
   ...BASE_DEFAULT_EVENTS,
+  ...GM_EVENTS,
   ...USC_HOLIDAY_EVENTS,
 ];
 

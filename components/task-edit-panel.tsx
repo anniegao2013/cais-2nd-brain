@@ -1,5 +1,10 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
-import { CATEGORIES, categoryIndex, sectionLabel } from "@/lib/categories";
+import {
+  CATEGORIES,
+  categoryIndex,
+  isGmIdeasCategory,
+  sectionLabel,
+} from "@/lib/categories";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
 
@@ -24,9 +29,16 @@ export function TaskEditPanel({
   const outgoingEdges = board.state.dependencies.filter(
     (edge) => edge.before === task.id,
   );
+  const gmIdea = isGmIdeasCategory(startCategoryId);
 
   return (
     <>
+      {gmIdea && (
+        <p className="mb-3 rounded-md border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-400/40 dark:bg-indigo-400/10 dark:text-indigo-300">
+          This is an idea for a future GM. Suggest a month on the idea row to
+          group matching GM weeks, then use Assign to GM to schedule it.
+        </p>
+      )}
       {(task.suggested || parent?.suggested) && (
         <p className="mb-3 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300">
           {task.suggested
@@ -103,36 +115,44 @@ export function TaskEditPanel({
             );
           })}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-          <span className="font-medium text-zinc-900 dark:text-zinc-100">
-            Span
-          </span>
-          <span>
-            Starts in {sectionLabel(startCategoryId)}, runs through
-          </span>
-          <select
-            id={`span-${task.id}`}
-            value={task.endCategoryId ?? startCategoryId}
-            onChange={(event) =>
-              board.setTaskSpan(startCategoryId, task.id, event.target.value)
-            }
-            className="h-7 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
-          >
-            {CATEGORIES.slice(
-              categoryIndex(startCategoryId),
-              spanMaxIndex + 1,
-            ).map((option, offset) => (
-              <option key={option.id} value={option.id}>
-                {offset === 0 ? "Same section only" : option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-          {task.endCategoryId
-            ? `Runs across ${spanLabel(startCategoryId, task.endCategoryId)}.`
-            : "Choose a later section to make this task span multiple weeks."}
-        </p>
+        {!gmIdea && (
+          <>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                Span
+              </span>
+              <span>
+                Starts in {sectionLabel(startCategoryId)}, runs through
+              </span>
+              <select
+                id={`span-${task.id}`}
+                value={task.endCategoryId ?? startCategoryId}
+                onChange={(event) =>
+                  board.setTaskSpan(
+                    startCategoryId,
+                    task.id,
+                    event.target.value,
+                  )
+                }
+                className="h-7 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+              >
+                {CATEGORIES.slice(
+                  categoryIndex(startCategoryId),
+                  spanMaxIndex + 1,
+                ).map((option, offset) => (
+                  <option key={option.id} value={option.id}>
+                    {offset === 0 ? "Same section only" : option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+              {task.endCategoryId
+                ? `Runs across ${spanLabel(startCategoryId, task.endCategoryId)}.`
+                : "Choose a later section to make this task span multiple weeks."}
+            </p>
+          </>
+        )}
       </div>
       {task.parentId && parent && (
         <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
@@ -173,126 +193,133 @@ export function TaskEditPanel({
           </p>
         </div>
       )}
-      <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-        <div className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-          Ordering
-        </div>
-        {incomingEdges.length === 0 && outgoingEdges.length === 0 ? (
-          <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-            No ordering rules yet.
-          </p>
-        ) : (
-          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-300">
-            {incomingEdges.map((edge) => {
-              const otherText =
-                findTask(board.state, edge.before)?.task.text ?? "Unknown task";
-              return (
-                <li
-                  key={`${edge.before}->${edge.after}`}
-                  className="flex items-center gap-2"
-                >
-                  <span className="min-w-0 flex-1">
-                    After{" "}
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {otherText}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      board.removeDependency(edge.before, edge.after)
-                    }
-                    aria-label={`Remove rule that ${otherText} comes before ${task.text}`}
-                    className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+      {!gmIdea && (
+        <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+          <div className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
+            Ordering
+          </div>
+          {incomingEdges.length === 0 && outgoingEdges.length === 0 ? (
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+              No ordering rules yet.
+            </p>
+          ) : (
+            <ul className="mt-1.5 flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-300">
+              {incomingEdges.map((edge) => {
+                const otherText =
+                  findTask(board.state, edge.before)?.task.text ??
+                  "Unknown task";
+                return (
+                  <li
+                    key={`${edge.before}->${edge.after}`}
+                    className="flex items-center gap-2"
                   >
-                    ×
-                  </button>
-                </li>
-              );
-            })}
-            {outgoingEdges.map((edge) => {
-              const otherText =
-                findTask(board.state, edge.after)?.task.text ?? "Unknown task";
-              return (
-                <li
-                  key={`${edge.before}->${edge.after}`}
-                  className="flex items-center gap-2"
-                >
-                  <span className="min-w-0 flex-1">
-                    Before{" "}
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {otherText}
+                    <span className="min-w-0 flex-1">
+                      After{" "}
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                        {otherText}
+                      </span>
                     </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      board.removeDependency(edge.before, edge.after)
-                    }
-                    aria-label={`Remove rule that ${task.text} comes before ${otherText}`}
-                    className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        board.removeDependency(edge.before, edge.after)
+                      }
+                      aria-label={`Remove rule that ${otherText} comes before ${task.text}`}
+                      className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+                    >
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
+              {outgoingEdges.map((edge) => {
+                const otherText =
+                  findTask(board.state, edge.after)?.task.text ??
+                  "Unknown task";
+                return (
+                  <li
+                    key={`${edge.before}->${edge.after}`}
+                    className="flex items-center gap-2"
                   >
-                    ×
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                    <span className="min-w-0 flex-1">
+                      Before{" "}
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                        {otherText}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        board.removeDependency(edge.before, edge.after)
+                      }
+                      aria-label={`Remove rule that ${task.text} comes before ${otherText}`}
+                      className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+                    >
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
-          <span>Must be between</span>
-          <select
-            value={board.depAfterId}
-            onChange={(event) => {
-              board.setDepAfterId(event.target.value);
-              board.setDepError(null);
-            }}
-            aria-label={`Task that must come before ${task.text}`}
-            className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
-          >
-            <option value="">Any</option>
-            {board.taskOptions
-              .filter((option) => option.id !== task.id)
-              .map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-          </select>
-          <span>and</span>
-          <select
-            value={board.depBeforeId}
-            onChange={(event) => {
-              board.setDepBeforeId(event.target.value);
-              board.setDepError(null);
-            }}
-            aria-label={`Task that must come after ${task.text}`}
-            className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
-          >
-            <option value="">Any</option>
-            {board.taskOptions
-              .filter((option) => option.id !== task.id)
-              .map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => board.addDependency(task.id)}
-            className="h-7 rounded-md bg-zinc-900 px-2.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            Add
-          </button>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+            <span>Must be between</span>
+            <select
+              value={board.depAfterId}
+              onChange={(event) => {
+                board.setDepAfterId(event.target.value);
+                board.setDepError(null);
+              }}
+              aria-label={`Task that must come before ${task.text}`}
+              className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+            >
+              <option value="">Any</option>
+              {board.taskOptions
+                .filter((option) => option.id !== task.id)
+                .map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+            </select>
+            <span>and</span>
+            <select
+              value={board.depBeforeId}
+              onChange={(event) => {
+                board.setDepBeforeId(event.target.value);
+                board.setDepError(null);
+              }}
+              aria-label={`Task that must come after ${task.text}`}
+              className="h-7 max-w-48 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-zinc-600"
+            >
+              <option value="">Any</option>
+              {board.taskOptions
+                .filter((option) => option.id !== task.id)
+                .map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => board.addDependency(task.id)}
+              className="h-7 rounded-md bg-zinc-900 px-2.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              Add
+            </button>
+          </div>
+          {board.depError && (
+            <p
+              role="alert"
+              className="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              {board.depError}
+            </p>
+          )}
         </div>
-        {board.depError && (
-          <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
-            {board.depError}
-          </p>
-        )}
-      </div>
+      )}
     </>
   );
 }
