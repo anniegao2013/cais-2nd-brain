@@ -36,8 +36,9 @@ A GM event is seeded in every instructional week whose Wednesday is not a
 holiday. Fall Recess also cancels that week's GM even though the recess only
 covers Thursday and Friday. Each GM event has an Add task control for attaching
 agenda items or follow-up work. The GM ideas tab keeps a running backlog of
-ideas; assigning one to a GM turns it into a task for that meeting, and Return
-to ideas sends it back to the backlog.
+ideas; an idea can suggest a month, and GM weeks in that month are grouped
+first in the assignment picker. Assigning an idea to a GM turns it into a task
+for that meeting, and Return to ideas sends it back to the backlog.
 
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.

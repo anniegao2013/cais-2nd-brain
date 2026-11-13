@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { CATEGORIES } from "@/lib/categories";
-import { gmDateLabel } from "@/lib/calendar";
-import { isGmEvent } from "@/lib/gm-events";
+import {
+  gmEventOptions as buildGmEventOptions,
+  gmMonthOptions as buildGmMonthOptions,
+} from "@/lib/gm-events";
 import {
   getServerSnapshot,
   getSnapshot,
@@ -68,19 +70,8 @@ export function useTaskBoard() {
     })),
   );
 
-  const gmEventOptions = CATEGORIES.flatMap((category) =>
-    (state.tasks[category.id] ?? [])
-      .filter((task) => isGmEvent(task))
-      .map((task) => {
-        const dateLabel = gmDateLabel(category.id);
-        return {
-          id: task.id,
-          label: dateLabel
-            ? `${category.label} · ${dateLabel}`
-            : category.label,
-        };
-      }),
-  );
+  const gmEventOptions = buildGmEventOptions(state);
+  const gmMonthOptions = buildGmMonthOptions(state);
 
   function matchesFilter(task: Task) {
     return matchesTagFilter(task.tags, activeTags);
@@ -320,6 +311,11 @@ export function useTaskBoard() {
     if (next) setState(next);
   }
 
+  function setGmIdeaSuggestedMonth(ideaId: string, month: string) {
+    const next = taskActions.setGmIdeaSuggestedMonth(state, ideaId, month);
+    if (next) setState(next);
+  }
+
   const tasks = allTasks(state);
   const totalTaskCount = tasks.length;
   const filteredTaskCount = tasks.filter(matchesFilter).length;
@@ -329,6 +325,7 @@ export function useTaskBoard() {
     tags: TAGS,
     taskOptions,
     gmEventOptions,
+    gmMonthOptions,
     activeTags,
     totalTaskCount,
     filteredTaskCount,
@@ -376,6 +373,7 @@ export function useTaskBoard() {
     moveTask,
     assignGmIdea,
     returnGmIdea,
+    setGmIdeaSuggestedMonth,
   };
 }
 

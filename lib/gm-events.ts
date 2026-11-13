@@ -1,9 +1,14 @@
 import {
   DATED_SEMESTERS,
   categoryIdForWeek,
+  gmDateLabel,
+  monthKeyForISO,
+  monthLabel,
   weekRangeForSemester,
   weekWednesdayISO,
 } from "./calendar";
+import { CATEGORIES } from "./categories";
+import type { AppState } from "./types";
 import { USC_TIMELINE_HOLIDAYS, type TimelineHoliday } from "./usc-holidays";
 
 export const GM_TEXT = "GM";
@@ -73,4 +78,46 @@ export function weeklyGmEvents(
   }
 
   return events;
+}
+
+export type GmEventOption = {
+  id: string;
+  categoryId: string;
+  month: string;
+  label: string;
+};
+
+// GM choices in timeline order, with the month of their Wednesday so ideas can
+// suggest a rough timing before a specific week is picked.
+export function gmEventOptions(state: AppState): GmEventOption[] {
+  const options: GmEventOption[] = [];
+  for (const category of CATEGORIES) {
+    for (const task of state.tasks[category.id] ?? []) {
+      if (!isGmEvent(task)) continue;
+      const dateISO = weekWednesdayISO(category.id);
+      const dateLabel = gmDateLabel(category.id);
+      options.push({
+        id: task.id,
+        categoryId: category.id,
+        month: dateISO ? monthKeyForISO(dateISO) : "",
+        label: dateLabel
+          ? `${category.label} · ${dateLabel}`
+          : category.label,
+      });
+    }
+  }
+  return options;
+}
+
+export type GmMonthOption = { value: string; label: string };
+
+export function gmMonthOptions(state: AppState): GmMonthOption[] {
+  const seen = new Set<string>();
+  const options: GmMonthOption[] = [];
+  for (const event of gmEventOptions(state)) {
+    if (!event.month || seen.has(event.month)) continue;
+    seen.add(event.month);
+    options.push({ value: event.month, label: monthLabel(event.month) });
+  }
+  return options;
 }

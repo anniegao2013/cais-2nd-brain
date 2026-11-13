@@ -7,8 +7,9 @@ import {
   sectionLabel,
   tabForCategoryId,
 } from "../lib/categories";
-import { DEFAULT_EVENTS } from "../lib/defaults";
-import { gmEventId } from "../lib/gm-events";
+import { DEFAULT_EVENTS, DEFAULT_STATE } from "../lib/defaults";
+import { gmEventId, gmEventOptions, gmMonthOptions } from "../lib/gm-events";
+import { monthLabel } from "../lib/calendar";
 import { normalizeStorage } from "../lib/storage";
 import {
   addSubtask,
@@ -16,6 +17,7 @@ import {
   assignGmIdea,
   moveTask,
   returnGmIdea,
+  setGmIdeaSuggestedMonth,
 } from "../lib/task-actions";
 import { findTask, taskOccurrences } from "../lib/tasks";
 import { makeState, makeTask } from "./helpers";
@@ -85,7 +87,11 @@ describe("assignGmIdea", () => {
     const gmId = gmEventId("week-3");
     const state = makeState({
       [GM_IDEAS_CATEGORY_ID]: [
-        makeTask("idea", { text: "Boba social", notes: "Pick a Tuesday" }),
+        makeTask("idea", {
+          text: "Boba social",
+          notes: "Pick a Tuesday",
+          gmSuggestedMonth: "2026-10",
+        }),
       ],
       "week-3": [makeTask(gmId, { text: "GM" })],
     });
@@ -99,6 +105,7 @@ describe("assignGmIdea", () => {
     ).toMatchObject({
       text: "Boba social",
       notes: "Pick a Tuesday",
+      gmSuggestedMonth: "2026-10",
       parentId: gmId,
       gmIdea: true,
     });
@@ -129,6 +136,7 @@ describe("returnGmIdea", () => {
           text: "Boba social",
           parentId: gmId,
           gmIdea: true,
+          gmSuggestedMonth: "2026-10",
           leadWeeks: 2,
           endCategoryId: "week-4",
         }),
@@ -139,7 +147,11 @@ describe("returnGmIdea", () => {
     const idea = next?.tasks[GM_IDEAS_CATEGORY_ID][0];
 
     expect(next?.tasks["week-3"].map((task) => task.id)).toEqual([gmId]);
-    expect(idea).toMatchObject({ id: "idea", text: "Boba social" });
+    expect(idea).toMatchObject({
+      id: "idea",
+      text: "Boba social",
+      gmSuggestedMonth: "2026-10",
+    });
     expect(idea?.parentId).toBeUndefined();
     expect(idea?.gmIdea).toBeUndefined();
     expect(idea?.leadWeeks).toBeUndefined();
@@ -181,6 +193,63 @@ describe("GM idea guards", () => {
   });
 });
 
+describe("suggested GM timing", () => {
+  it("derives months and suggested weeks from the GM Wednesdays", () => {
+    expect(gmMonthOptions(DEFAULT_STATE).map((option) => option.value)).toEqual(
+      [
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12",
+        "2027-01",
+        "2027-02",
+        "2027-03",
+        "2027-04",
+      ],
+    );
+
+    const october = gmEventOptions(DEFAULT_STATE).filter(
+      (option) => option.month === "2026-10",
+    );
+    expect(october.map((option) => option.categoryId)).toEqual([
+      "week-8",
+      "week-9",
+      "week-10",
+    ]);
+    expect(october[0].label).toBe("Fall Week 8 · Wed, Oct 14");
+    expect(monthLabel("2026-10")).toBe("October 2026");
+  });
+
+  it("sets and clears a suggested month on a GM idea", () => {
+    const state = makeState({ [GM_IDEAS_CATEGORY_ID]: [makeTask("idea")] });
+
+    const suggested = setGmIdeaSuggestedMonth(state, "idea", "2026-10");
+    expect(
+      suggested?.tasks[GM_IDEAS_CATEGORY_ID][0].gmSuggestedMonth,
+    ).toBe("2026-10");
+
+    const cleared = setGmIdeaSuggestedMonth(suggested!, "idea", "");
+    expect(
+      cleared?.tasks[GM_IDEAS_CATEGORY_ID][0].gmSuggestedMonth,
+    ).toBeUndefined();
+  });
+
+  it("rejects invalid months and tasks outside the backlog", () => {
+    const state = makeState({
+      [GM_IDEAS_CATEGORY_ID]: [makeTask("idea")],
+      "week-3": [makeTask("week-task")],
+    });
+
+    expect(setGmIdeaSuggestedMonth(state, "idea", "2026-13")).toBeNull();
+    expect(setGmIdeaSuggestedMonth(state, "idea", "October")).toBeNull();
+    expect(setGmIdeaSuggestedMonth(state, "missing", "2026-10")).toBeNull();
+    expect(
+      setGmIdeaSuggestedMonth(state, "week-task", "2026-10"),
+    ).toBeNull();
+  });
+});
+
 describe("GM idea persistence", () => {
   it("keeps backlog items and assigned ideas across a storage round trip", () => {
     const gmId = gmEventId("week-5");
@@ -188,7 +257,12 @@ describe("GM idea persistence", () => {
       JSON.stringify({
         tasks: {
           [GM_IDEAS_CATEGORY_ID]: [
-            { id: "idea", text: "Boba social", done: false },
+            {
+              id: "idea",
+              text: "Boba social",
+              done: false,
+              gmSuggestedMonth: "2026-10",
+            },
           ],
           "week-5": [
             { id: gmId, text: "GM", done: false },
@@ -198,6 +272,7 @@ describe("GM idea persistence", () => {
               done: false,
               parentId: gmId,
               gmIdea: true,
+              gmSuggestedMonth: "2026-10",
             },
           ],
         },
@@ -208,11 +283,46 @@ describe("GM idea persistence", () => {
 
     expect(findTask(state, "idea")).toMatchObject({
       categoryId: GM_IDEAS_CATEGORY_ID,
-      task: { text: "Boba social" },
+      task: {
+        text: "Boba social",
+        gmSuggestedMonth: "2026-10",
+      },
     });
     expect(findTask(state, "assigned")).toMatchObject({
       categoryId: "week-5",
-      task: { parentId: gmId, gmIdea: true },
+      task: {
+        parentId: gmId,
+        gmIdea: true,
+        gmSuggestedMonth: "2026-10",
+      },
     });
+  });
+
+  it("drops malformed suggested months when loading a saved board", () => {
+    const state = normalizeStorage(
+      JSON.stringify({
+        tasks: {
+          [GM_IDEAS_CATEGORY_ID]: [
+            {
+              id: "keep",
+              text: "Keep",
+              done: false,
+              gmSuggestedMonth: "2026-10",
+            },
+            {
+              id: "drop",
+              text: "Drop",
+              done: false,
+              gmSuggestedMonth: "October",
+            },
+          ],
+        },
+        removedDefaults: DEFAULT_EVENTS.map((event) => event.id),
+        dependencies: [],
+      }),
+    );
+
+    expect(findTask(state, "keep")?.task.gmSuggestedMonth).toBe("2026-10");
+    expect(findTask(state, "drop")?.task.gmSuggestedMonth).toBeUndefined();
   });
 });

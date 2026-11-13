@@ -5,7 +5,7 @@ import {
   isGmIdeasCategory,
   sectionLabel,
 } from "./categories";
-import { weekInfoFromCategoryId } from "./calendar";
+import { weekInfoFromCategoryId, isMonthKey } from "./calendar";
 import { sortState } from "./dependencies";
 import { isGmEvent } from "./gm-events";
 import { cleanNotes } from "./notes";
@@ -480,4 +480,37 @@ export function returnGmIdea(
   ];
 
   return sortState({ ...state, tasks });
+}
+
+// A month is a rough target, so it stays attached to the idea until a specific
+// GM week is picked. Passing an empty string clears the suggestion.
+export function setGmIdeaSuggestedMonth(
+  state: AppState,
+  ideaId: string,
+  rawMonth: string,
+): AppState | null {
+  const location = findTask(state, ideaId);
+  if (!location || !isGmIdeasCategory(location.categoryId)) return null;
+
+  const month = rawMonth.trim();
+  if (month && !isMonthKey(month)) return null;
+
+  return {
+    ...state,
+    tasks: {
+      ...state.tasks,
+      [location.categoryId]: (state.tasks[location.categoryId] ?? []).map(
+        (task) => {
+          if (task.id !== ideaId) return task;
+          const next = { ...task };
+          if (month) {
+            next.gmSuggestedMonth = month;
+          } else {
+            delete next.gmSuggestedMonth;
+          }
+          return next;
+        },
+      ),
+    },
+  };
 }

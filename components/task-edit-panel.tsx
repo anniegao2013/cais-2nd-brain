@@ -35,8 +35,8 @@ export function TaskEditPanel({
     <>
       {gmIdea && (
         <p className="mb-3 rounded-md border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-400/40 dark:bg-indigo-400/10 dark:text-indigo-300">
-          This is an idea for a future GM. Use Assign to GM on the idea row to
-          schedule it.
+          This is an idea for a future GM. Suggest a month on the idea row to
+          group matching GM weeks, then use Assign to GM to schedule it.
         </p>
       )}
       {(task.suggested || parent?.suggested) && (

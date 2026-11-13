@@ -264,3 +264,24 @@ export function gmDateLabel(categoryId: string): string | null {
   if (!iso) return null;
   return weekdayDate.format(new Date(`${iso}T00:00:00Z`));
 }
+
+const MONTH_KEY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export function isMonthKey(value: unknown): value is string {
+  return typeof value === "string" && MONTH_KEY_PATTERN.test(value);
+}
+
+export function monthKeyForISO(iso: string): string {
+  return iso.slice(0, 7);
+}
+
+const monthYear = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+export function monthLabel(monthKey: string): string {
+  if (!isMonthKey(monthKey)) return monthKey;
+  return monthYear.format(new Date(`${monthKey}-01T00:00:00Z`));
+}

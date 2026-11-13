@@ -126,12 +126,12 @@ export default function TaskBoard() {
         task title to read the description, and use Edit to change the title,
         description, tags, span, and ordering rules. Ordering can also be set
         when adding an event. Use the tabs to switch between the pre-year list,
-        each semester, and the GM ideas backlog. Assign an idea from the
-        backlog to a GM to turn it into a task for that meeting, and use Return
-        to ideas to send it back. The filter bar shows only tasks with selected
-        tags. Tasks marked Suggestion are just ideas for social events, not
-        events that are already planned: keep, move, rename, or delete them as
-        you like.
+        each semester, and the GM ideas backlog. Suggest a month for an idea to
+        group matching GM weeks first, then assign it to one of them; Return to
+        ideas sends it back. The filter bar shows only tasks with selected tags.
+        Tasks marked Suggestion are just ideas for social events, not events
+        that are already planned: keep, move, rename, or delete them as you
+        like.
       </p>
 
       <TagFilter board={board} />
