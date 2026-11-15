@@ -46,6 +46,12 @@ within the next month, and later or undated; completed items move to their own
 group. To-dos use the same checkboxes, notes, tags, and editing controls, but
 they are not tied to a week and do not use spans, ordering rules, or subtasks.
 
+When the week containing today has a GM, that GM gets two recurring prep tasks:
+"Update social points" and "Make GM slides". They are created only for the
+current GM week rather than seeded across the whole year, so future weeks stay
+clear until they become current. Deleting one does not recreate it, and
+unfinished recurring tasks do not carry forward into later weeks.
+
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.
 The scraper also records each semester's Classes Begin and Classes End dates,

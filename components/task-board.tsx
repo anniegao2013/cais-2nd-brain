@@ -133,10 +133,12 @@ export default function TaskBoard() {
         for an idea to group matching GM weeks first, then assign it to one of
         them; Return to ideas sends it back. To-dos are undated reminders unless
         you add a due date; items are grouped as overdue, urgent (today or
-        tomorrow), within the next week, within the next month, or later. The
-        filter bar shows only tasks with selected tags. Tasks marked Suggestion
-        are just ideas for social events, not events that are already planned:
-        keep, move, rename, or delete them as you like.
+        tomorrow), within the next week, within the next month, or later. When
+        the current week has a GM, it also gets Update social points and Make GM
+        slides as weekly prep tasks. The filter bar shows only tasks with
+        selected tags. Tasks marked Suggestion are just ideas for social
+        events, not events that are already planned: keep, move, rename, or
+        delete them as you like.
       </p>
 
       <TagFilter board={board} />

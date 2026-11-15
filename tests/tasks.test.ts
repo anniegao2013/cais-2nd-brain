@@ -85,6 +85,7 @@ describe("overdueWeekOccurrences", () => {
         makeTask("finished", { done: true }),
         makeTask("holiday", { isHoliday: true }),
         makeTask("idea", { suggested: true }),
+        makeTask("weekly", { recurring: true }),
       ],
       "week-4": [makeTask("current")],
     });

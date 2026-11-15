@@ -347,6 +347,7 @@ export function TaskRow({
         isOverdue ||
         isGmIdea ||
         assignedIdea ||
+        task.recurring ||
         task.gmSuggestedMonth) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
           {isOverdue && (
@@ -383,6 +384,14 @@ export function TaskRow({
               className="rounded-full border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700 dark:border-indigo-400/60 dark:bg-indigo-400/15 dark:text-indigo-300"
             >
               GM idea
+            </span>
+          )}
+          {task.recurring && (
+            <span
+              title="Recurring task for this week's GM"
+              className="rounded-full border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              Weekly
             </span>
           )}
           {task.gmSuggestedMonth && (isGmIdea || assignedIdea) && (

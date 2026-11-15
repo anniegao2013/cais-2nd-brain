@@ -2,10 +2,12 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { CATEGORIES } from "@/lib/categories";
+import { currentWeekCategoryId } from "@/lib/calendar";
 import {
   gmEventOptions as buildGmEventOptions,
   gmMonthOptions as buildGmMonthOptions,
 } from "@/lib/gm-events";
+import { syncRecurringGmTasks } from "@/lib/recurring-gm-tasks";
 import {
   getServerSnapshot,
   getSnapshot,
@@ -43,6 +45,22 @@ function useTaskStore() {
 
 export function useTaskBoard() {
   const state = useTaskStore();
+
+  // Materialize the current week's GM prep tasks. Re-check periodically so a
+  // tab left open across a week boundary picks up the next GM.
+  useEffect(() => {
+    function sync() {
+      const next = syncRecurringGmTasks(
+        getSnapshot(),
+        currentWeekCategoryId(),
+      );
+      if (next) setState(next);
+    }
+
+    sync();
+    const timer = window.setInterval(sync, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const [subtaskParentId, setSubtaskParentId] = useState<string | null>(null);
   const [subtaskText, setSubtaskText] = useState("");

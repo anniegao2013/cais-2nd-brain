@@ -47,6 +47,12 @@ export function TaskEditPanel({
           it is done; use tags and notes to keep the list organized.
         </p>
       )}
+      {task.recurring && (
+        <p className="mb-3 rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
+          This weekly GM task appears in the week that contains today.
+          Completing or deleting it only affects this week&apos;s occurrence.
+        </p>
+      )}
       {(task.suggested || parent?.suggested) && (
         <p className="mb-3 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300">
           {task.suggested

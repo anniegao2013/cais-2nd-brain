@@ -80,7 +80,13 @@ export function overdueWeekOccurrences(
       const parent = task.parentId
         ? findTask(state, task.parentId)?.task
         : undefined;
-      if (task.done || task.isHoliday || task.suggested || parent?.suggested) {
+      if (
+        task.done ||
+        task.isHoliday ||
+        task.suggested ||
+        task.recurring ||
+        parent?.suggested
+      ) {
         continue;
       }
 

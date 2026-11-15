@@ -15,6 +15,8 @@ export type Task = {
   suggested?: boolean;
   // Set when an idea from the GM ideas backlog has been assigned to a GM.
   gmIdea?: boolean;
+  // A task generated for the current week's GM, such as weekly prep work.
+  recurring?: boolean;
   // Optional YYYY-MM-DD suggestion for when an idea should be discussed.
   gmSuggestedMonth?: string;
   // Optional YYYY-MM-DD due date for an undated to-do.
