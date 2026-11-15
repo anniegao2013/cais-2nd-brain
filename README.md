@@ -63,6 +63,14 @@ Thursday-Friday recess does not cancel a Wednesday meeting. Only the current
 week's agenda is kept, so the checklist does not collect one unfinished agenda
 per week.
 
+The E-board agenda tab drafts the next meeting. It pulls open events from every
+week the meeting covers, plus open to-dos due by the end of that coverage. A
+meeting after Wednesday's GM starts with the following week, so it plans the
+next GM rather than repeating the one that just happened; an earlier meeting
+starts with its own week. A week whose meeting day is a USC holiday has no
+meeting, so its items roll into the meeting before it; for example, Thanksgiving
+week items appear on the previous week's agenda.
+
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.
 The scraper also records each semester's Classes Begin and Classes End dates,

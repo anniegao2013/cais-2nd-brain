@@ -34,6 +34,7 @@ describe("GM ideas tab", () => {
       "spring",
       "gm-ideas",
       "todos",
+      "eboard-agenda",
     ]);
     expect(categoriesForTab("gm-ideas")).toEqual([GM_IDEAS_CATEGORY]);
     expect(tabForCategoryId(GM_IDEAS_CATEGORY_ID)).toBe("gm-ideas");

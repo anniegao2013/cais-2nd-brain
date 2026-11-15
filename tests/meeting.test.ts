@@ -6,6 +6,7 @@ import {
   DEFAULT_MEETING_SCHEDULE,
   isMeetingSchedule,
   isMeetingTime,
+  meetingFollowsGm,
   meetingTimeLabel,
   resolveMeetingSchedule,
   weekdayLabel,
@@ -49,6 +50,16 @@ describe("meeting schedule", () => {
     expect(weekMeetingISO("week-1", 0)).toBe("2026-08-30");
     expect(gmDateLabel("week-1", 4)).toBe("Thu, Aug 27");
     expect(weekMeetingISO("spring", 3)).toBeNull();
+  });
+
+  it("plans the following week only when the meeting follows Wednesday's GM", () => {
+    expect(meetingFollowsGm(0)).toBe(true); // Sunday is the end of the week
+    expect(meetingFollowsGm(1)).toBe(false);
+    expect(meetingFollowsGm(2)).toBe(false);
+    expect(meetingFollowsGm(3)).toBe(false);
+    expect(meetingFollowsGm(4)).toBe(true);
+    expect(meetingFollowsGm(5)).toBe(true);
+    expect(meetingFollowsGm(6)).toBe(true);
   });
 
   it("sets a valid schedule and rejects invalid values", () => {

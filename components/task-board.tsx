@@ -17,6 +17,7 @@ import {
 import { TagFilter } from "./tag-filter";
 import { TaskSection } from "./task-section";
 import { MeetingSchedulePicker } from "./meeting-schedule-picker";
+import { EboardAgenda } from "./eboard-agenda";
 
 function tabSummary(tabId: TimelineTabId): string {
   if (tabId === "before") {
@@ -27,6 +28,9 @@ function tabSummary(tabId: TimelineTabId): string {
   }
   if (tabId === "todos") {
     return "A checklist grouped by due date: overdue, urgent, next week, and next month.";
+  }
+  if (tabId === "eboard-agenda") {
+    return "The next e-board meeting, built from the weeks it covers and open to-dos.";
   }
 
   const weekCount = tabId === "fall" ? WEEK_COUNT : SPRING_WEEK_COUNT;
@@ -143,7 +147,11 @@ export default function TaskBoard() {
         selected tags. Tasks marked Suggestion are just ideas for social
         events, not events that are already planned: keep, move, rename, or
         delete them as you like. Set the weekly e-board meeting day and time in
-        the meeting card above the tabs; GM rows use that day and time.
+        the meeting card above the tabs; GM rows use that day and time. The
+        E-board agenda tab drafts the next meeting from the events and open
+        to-dos it covers; meetings after the Wednesday GM start with the
+        following week, and weeks without a meeting roll into the meeting before
+        them.
       </p>
 
       <TagFilter board={board} />
@@ -183,47 +191,53 @@ export default function TaskBoard() {
         aria-labelledby={`timeline-tab-${activeTabId}`}
         className="mt-8 flex flex-col gap-10"
       >
-        {hiddenSectionCount > 0 && (
-          <div
-            id="past-sections-toggle"
-            className="flex scroll-mt-6 items-center gap-3"
-          >
-            <span
-              aria-hidden="true"
-              className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"
-            />
-            <button
-              type="button"
-              onClick={toggleEarlierSections}
-              aria-expanded={showEarlierSections}
-              className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
-            >
-              {showEarlierSections
-                ? "Hide earlier sections"
-                : `Show ${hiddenSectionCount} earlier ${
-                    hiddenSectionCount === 1 ? "section" : "sections"
-                  }`}
-            </button>
-            <span
-              aria-hidden="true"
-              className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"
-            />
-          </div>
-        )}
+        {activeTabId === "eboard-agenda" ? (
+          <EboardAgenda board={board} />
+        ) : (
+          <>
+            {hiddenSectionCount > 0 && (
+              <div
+                id="past-sections-toggle"
+                className="flex scroll-mt-6 items-center gap-3"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"
+                />
+                <button
+                  type="button"
+                  onClick={toggleEarlierSections}
+                  aria-expanded={showEarlierSections}
+                  className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+                >
+                  {showEarlierSections
+                    ? "Hide earlier sections"
+                    : `Show ${hiddenSectionCount} earlier ${
+                        hiddenSectionCount === 1 ? "section" : "sections"
+                      }`}
+                </button>
+                <span
+                  aria-hidden="true"
+                  className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"
+                />
+              </div>
+            )}
 
-        {visibleCategories.map((category) => (
-          <TaskSection
-            key={category.id}
-            board={board}
-            category={category}
-            isCurrentWeek={category.id === currentWeekCategoryId}
-            currentWeekCategoryId={currentWeekCategoryId}
-          />
-        ))}
-        {board.activeTags.length > 0 && board.filteredTaskCount === 0 && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            No tasks match these tags.
-          </p>
+            {visibleCategories.map((category) => (
+              <TaskSection
+                key={category.id}
+                board={board}
+                category={category}
+                isCurrentWeek={category.id === currentWeekCategoryId}
+                currentWeekCategoryId={currentWeekCategoryId}
+              />
+            ))}
+            {board.activeTags.length > 0 && board.filteredTaskCount === 0 && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No tasks match these tags.
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

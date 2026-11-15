@@ -7,7 +7,8 @@ export type TimelineTabId =
   | "fall"
   | "spring"
   | "gm-ideas"
-  | "todos";
+  | "todos"
+  | "eboard-agenda";
 
 export type TimelineTab = {
   id: TimelineTabId;
@@ -90,6 +91,11 @@ export const TIMELINE_TABS: TimelineTab[] = [
     id: "todos",
     label: TODO_CATEGORY.label,
     categoryIds: [TODO_CATEGORY_ID],
+  },
+  {
+    id: "eboard-agenda",
+    label: "E-board agenda",
+    categoryIds: [],
   },
 ];
 

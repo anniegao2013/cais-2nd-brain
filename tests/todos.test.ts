@@ -25,13 +25,14 @@ afterEach(() => {
 });
 
 describe("To-do tab", () => {
-  it("adds a dedicated single-section tab at the end", () => {
+  it("adds a dedicated single-section tab", () => {
     expect(TIMELINE_TABS.map((tab) => tab.id)).toEqual([
       "before",
       "fall",
       "spring",
       "gm-ideas",
       "todos",
+      "eboard-agenda",
     ]);
     expect(categoriesForTab("todos")).toEqual([TODO_CATEGORY]);
     expect(tabForCategoryId(TODO_CATEGORY_ID)).toBe("todos");
