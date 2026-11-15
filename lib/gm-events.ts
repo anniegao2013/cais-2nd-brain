@@ -4,10 +4,13 @@ import {
   gmDateLabel,
   monthKeyForISO,
   monthLabel,
+  weekInfoFromCategoryId,
+  weekMeetingISO,
   weekRangeForSemester,
   weekWednesdayISO,
 } from "./calendar";
 import { CATEGORIES } from "./categories";
+import { meetingTimeLabel, resolveMeetingSchedule } from "./meeting";
 import type { AppState } from "./types";
 import { USC_TIMELINE_HOLIDAYS, type TimelineHoliday } from "./usc-holidays";
 
@@ -45,6 +48,30 @@ function overlapsWeek(
   return holiday.startISO <= endISO && holiday.endISO >= startISO;
 }
 
+// A week has a meeting when its Wednesday is not a holiday and the whole week
+// is not off, such as Fall Recess. Eligibility stays Wednesday-based so
+// changing the meeting day or time never adds or removes meeting weeks.
+export function isMeetingWeek(
+  categoryId: string,
+  holidays: TimelineHoliday[] = USC_TIMELINE_HOLIDAYS,
+): boolean {
+  const info = weekInfoFromCategoryId(categoryId);
+  if (!info) return false;
+
+  const wednesday = weekWednesdayISO(categoryId);
+  if (!wednesday) return false;
+  if (holidays.some((holiday) => coversDate(holiday, wednesday))) {
+    return false;
+  }
+
+  const range = weekRangeForSemester(info.semesterId, info.week);
+  return !holidays.some(
+    (holiday) =>
+      WEEK_CANCELLING_HOLIDAY_LABELS.has(holiday.label) &&
+      overlapsWeek(holiday, range.startISO, range.endISO),
+  );
+}
+
 // One GM per instructional week, skipping weeks with a Wednesday holiday and
 // weeks that are off entirely, such as Fall Recess.
 export function weeklyGmEvents(
@@ -55,19 +82,7 @@ export function weeklyGmEvents(
   for (const semester of DATED_SEMESTERS) {
     for (let week = 1; week <= semester.weekCount; week += 1) {
       const categoryId = categoryIdForWeek(semester.id, week);
-      const wednesday = weekWednesdayISO(categoryId);
-      if (!wednesday) continue;
-      if (holidays.some((holiday) => coversDate(holiday, wednesday))) {
-        continue;
-      }
-
-      const range = weekRangeForSemester(semester.id, week);
-      const weekOff = holidays.some(
-        (holiday) =>
-          WEEK_CANCELLING_HOLIDAY_LABELS.has(holiday.label) &&
-          overlapsWeek(holiday, range.startISO, range.endISO),
-      );
-      if (weekOff) continue;
+      if (!isMeetingWeek(categoryId, holidays)) continue;
 
       events.push({
         id: gmEventId(categoryId),
@@ -91,17 +106,20 @@ export type GmEventOption = {
 // suggest a rough timing before a specific week is picked.
 export function gmEventOptions(state: AppState): GmEventOption[] {
   const options: GmEventOption[] = [];
+  const schedule = resolveMeetingSchedule(state);
   for (const category of CATEGORIES) {
     for (const task of state.tasks[category.id] ?? []) {
       if (!isGmEvent(task)) continue;
-      const dateISO = weekWednesdayISO(category.id);
-      const dateLabel = gmDateLabel(category.id);
+      const dateISO = weekMeetingISO(category.id, schedule.weekday);
+      const dateLabel = gmDateLabel(category.id, schedule.weekday);
       options.push({
         id: task.id,
         categoryId: category.id,
         month: dateISO ? monthKeyForISO(dateISO) : "",
         label: dateLabel
-          ? `${category.label} · ${dateLabel}`
+          ? `${category.label} · ${dateLabel} · ${meetingTimeLabel(
+              schedule.time,
+            )}`
           : category.label,
       });
     }

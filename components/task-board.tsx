@@ -16,6 +16,7 @@ import {
 } from "@/lib/categories";
 import { TagFilter } from "./tag-filter";
 import { TaskSection } from "./task-section";
+import { MeetingSchedulePicker } from "./meeting-schedule-picker";
 
 function tabSummary(tabId: TimelineTabId): string {
   if (tabId === "before") {
@@ -135,13 +136,19 @@ export default function TaskBoard() {
         you add a due date; items are grouped as overdue, urgent (today or
         tomorrow), within the next week, within the next month, or later. When
         the current week has a GM, it also gets Update social points and Make GM
-        slides as weekly prep tasks. The filter bar shows only tasks with
+        slides as weekly prep tasks. Weeks with an e-board meeting also add Make
+        e-board meeting agenda to the to-do list; the agenda is skipped only
+        when the meeting day itself falls on a USC holiday. The filter bar shows
+        only tasks with
         selected tags. Tasks marked Suggestion are just ideas for social
         events, not events that are already planned: keep, move, rename, or
-        delete them as you like.
+        delete them as you like. Set the weekly e-board meeting day and time in
+        the meeting card above the tabs; GM rows use that day and time.
       </p>
 
       <TagFilter board={board} />
+
+      <MeetingSchedulePicker board={board} />
 
       <div
         id="timeline-tabs"

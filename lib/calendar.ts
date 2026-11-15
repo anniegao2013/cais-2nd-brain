@@ -247,22 +247,38 @@ export function timelineRangeLabel(): string {
   return semesterRangeLabel("fall");
 }
 
-// GM events always happen on the Wednesday of the week they are listed under.
-export function weekWednesdayISO(categoryId: string): string | null {
+// The meeting falls on the selected weekday of the week it is listed under.
+export function weekMeetingISO(
+  categoryId: string,
+  weekday: number,
+): string | null {
   const info = weekInfoFromCategoryId(categoryId);
   if (!info) return null;
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
 
   const semester = semesterById(info.semesterId);
   const startMs = semester.startMs + (info.week - 1) * WEEK_MS;
   const startDay = new Date(startMs).getUTCDay();
-  const daysUntilWednesday = (3 - startDay + 7) % 7;
-  return toISODate(startMs + daysUntilWednesday * DAY_MS);
+  const offset = (weekday - startDay + 7) % 7;
+  return toISODate(startMs + offset * DAY_MS);
 }
 
-export function gmDateLabel(categoryId: string): string | null {
-  const iso = weekWednesdayISO(categoryId);
-  if (!iso) return null;
+// Wednesdays remain the default GM date for older callers.
+export function weekWednesdayISO(categoryId: string): string | null {
+  return weekMeetingISO(categoryId, 3);
+}
+
+export function isoDateLabel(iso: string): string {
   return weekdayDate.format(new Date(`${iso}T00:00:00Z`));
+}
+
+export function gmDateLabel(
+  categoryId: string,
+  weekday = 3,
+): string | null {
+  const iso = weekMeetingISO(categoryId, weekday);
+  if (!iso) return null;
+  return isoDateLabel(iso);
 }
 
 const MONTH_KEY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;

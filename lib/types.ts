@@ -30,6 +30,13 @@ export type Task = {
 
 export type TasksByCategory = Record<string, Task[]>;
 
+export type MeetingSchedule = {
+  // 0 = Sunday, matching Date#getDay().
+  weekday: number;
+  // 24-hour "HH:MM" from the time input.
+  time: string;
+};
+
 // An edge means `before` must happen earlier than `after`.
 export type Dependency = { before: string; after: string };
 
@@ -37,6 +44,9 @@ export type AppState = {
   tasks: TasksByCategory;
   removedDefaults: string[];
   dependencies: Dependency[];
+  // Weekly slot for the GM / e-board meeting. Older saves fall back to the
+  // default Wednesday evening slot.
+  meetingSchedule?: MeetingSchedule;
 };
 
 export type TaskOccurrence = {

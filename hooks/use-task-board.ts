@@ -8,6 +8,9 @@ import {
   gmMonthOptions as buildGmMonthOptions,
 } from "@/lib/gm-events";
 import { syncRecurringGmTasks } from "@/lib/recurring-gm-tasks";
+import { syncRecurringEboardAgenda } from "@/lib/recurring-eboard-tasks";
+import { resolveMeetingSchedule } from "@/lib/meeting";
+import * as meetingActions from "@/lib/meeting-actions";
 import {
   getServerSnapshot,
   getSnapshot,
@@ -46,13 +49,17 @@ function useTaskStore() {
 export function useTaskBoard() {
   const state = useTaskStore();
 
-  // Materialize the current week's GM prep tasks. Re-check periodically so a
-  // tab left open across a week boundary picks up the next GM.
+  // Materialize the current week's GM prep tasks and e-board agenda. Re-check
+  // periodically so a tab left open across a week boundary picks up the next
+  // meeting.
   useEffect(() => {
     function sync() {
-      const next = syncRecurringGmTasks(
-        getSnapshot(),
-        currentWeekCategoryId(),
+      const categoryId = currentWeekCategoryId();
+      const current = getSnapshot();
+      const withGmTasks = syncRecurringGmTasks(current, categoryId);
+      const next = syncRecurringEboardAgenda(
+        withGmTasks ?? current,
+        categoryId,
       );
       if (next) setState(next);
     }
@@ -90,6 +97,7 @@ export function useTaskBoard() {
 
   const gmEventOptions = buildGmEventOptions(state);
   const gmMonthOptions = buildGmMonthOptions(state);
+  const meetingSchedule = resolveMeetingSchedule(state);
 
   function matchesFilter(task: Task) {
     return matchesTagFilter(task.tags, activeTags);
@@ -340,6 +348,11 @@ export function useTaskBoard() {
     if (next) setState(next);
   }
 
+  function setMeetingSchedule(weekday: number, time: string) {
+    const next = meetingActions.setMeetingSchedule(state, weekday, time);
+    if (next) setState(next);
+  }
+
   const tasks = allTasks(state);
   const totalTaskCount = tasks.length;
   const filteredTaskCount = tasks.filter(matchesFilter).length;
@@ -350,6 +363,8 @@ export function useTaskBoard() {
     taskOptions,
     gmEventOptions,
     gmMonthOptions,
+    meetingSchedule,
+    setMeetingSchedule,
     activeTags,
     totalTaskCount,
     filteredTaskCount,

@@ -119,3 +119,17 @@ export function timelineHolidays(
 }
 
 export const USC_TIMELINE_HOLIDAYS = timelineHolidays();
+
+// Holidays keep their real start/end dates. The week assignment is only for
+// showing the reference row on the board; class cancellations are decided per
+// date, so a Thursday-Friday recess does not cancel a Wednesday meeting.
+export function holidayOnDate(
+  iso: string,
+  holidays: TimelineHoliday[] = USC_TIMELINE_HOLIDAYS,
+): TimelineHoliday | null {
+  return (
+    holidays.find(
+      (holiday) => holiday.startISO <= iso && iso <= holiday.endISO,
+    ) ?? null
+  );
+}

@@ -6,6 +6,7 @@ import {
   sectionLabel,
 } from "@/lib/categories";
 import { isGmEvent } from "@/lib/gm-events";
+import { meetingTimeLabel } from "@/lib/meeting";
 import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
@@ -87,10 +88,12 @@ export function TaskRow({
           { value: suggestedMonth, label: monthLabel(suggestedMonth) },
         ]
       : board.gmMonthOptions;
+  const gmCategoryId = isOverdue ? startCategoryId : categoryId;
   const gmDate =
     gmEvent || task.tags?.includes("gm")
-      ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
+      ? gmDateLabel(gmCategoryId, board.meetingSchedule.weekday)
       : null;
+  const gmTime = gmDate ? meetingTimeLabel(board.meetingSchedule.time) : null;
   const rowKey = `${task.id}:${categoryId}`;
   const descriptionId = `description-${task.id}-${categoryId}`;
   const editorId = `editor-${task.id}-${categoryId}`;
@@ -388,7 +391,7 @@ export function TaskRow({
           )}
           {task.recurring && (
             <span
-              title="Recurring task for this week's GM"
+              title="Recurring task for this week's e-board meeting"
               className="rounded-full border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
             >
               Weekly
@@ -431,10 +434,11 @@ export function TaskRow({
           )}
           {gmDate && (
             <span
-              title="GM always happens on Wednesday"
+              title="Weekly GM / e-board meeting"
               className="rounded-full border border-zinc-300 bg-white px-2 py-0.5 text-[10px] font-medium tabular-nums text-zinc-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200"
             >
               {gmDate}
+              {gmTime ? ` · ${gmTime}` : ""}
             </span>
           )}
           {task.endCategoryId && (

@@ -12,6 +12,9 @@ export function makeState(
     tasks,
     removedDefaults: overrides.removedDefaults ?? [],
     dependencies: overrides.dependencies ?? [],
+    ...(overrides.meetingSchedule
+      ? { meetingSchedule: overrides.meetingSchedule }
+      : {}),
   };
 }
 

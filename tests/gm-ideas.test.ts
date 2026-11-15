@@ -218,7 +218,9 @@ describe("suggested GM timing", () => {
       "week-9",
       "week-10",
     ]);
-    expect(october[0].label).toBe("Fall Week 8 · Wed, Oct 14");
+    expect(october[0].label).toBe(
+      "Fall Week 8 · Wed, Oct 14 · 7:00 PM",
+    );
     expect(monthLabel("2026-10")).toBe("October 2026");
   });
 

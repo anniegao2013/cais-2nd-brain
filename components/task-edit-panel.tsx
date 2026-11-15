@@ -49,8 +49,9 @@ export function TaskEditPanel({
       )}
       {task.recurring && (
         <p className="mb-3 rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
-          This weekly GM task appears in the week that contains today.
-          Completing or deleting it only affects this week&apos;s occurrence.
+          {todo
+            ? "This weekly e-board agenda appears when the current week has an e-board meeting. Completing or deleting it only affects this week's occurrence."
+            : "This weekly prep task appears when the current week has a GM. Completing or deleting it only affects this week's occurrence."}
         </p>
       )}
       {(task.suggested || parent?.suggested) && (
