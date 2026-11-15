@@ -2,9 +2,11 @@ import {
   CATEGORIES,
   categoryIndex,
   isGmIdeasCategory,
+  isTodoCategory,
   sectionLabel,
 } from "@/lib/categories";
 import { isGmEvent } from "@/lib/gm-events";
+import { meetingTimeLabel } from "@/lib/meeting";
 import { baseMoveBounds, moveBounds } from "@/lib/placement";
 import { findTask, spanLabel } from "@/lib/tasks";
 import type { Task } from "@/lib/types";
@@ -50,8 +52,11 @@ export function TaskRow({
     : "";
   const gmIdeaRow = isGmIdeasCategory(startCategoryId)
     ? "my-1 rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 dark:border-indigo-400/40 dark:bg-indigo-400/5"
-    : "";
+    : isTodoCategory(startCategoryId)
+      ? "my-1 rounded-md border border-zinc-200 bg-zinc-50/60 px-2.5 dark:border-zinc-800 dark:bg-zinc-900/40"
+      : "";
   const isGmIdea = isGmIdeasCategory(startCategoryId);
+  const isTodo = isTodoCategory(startCategoryId);
   const parentMaxIndex = parentLocation
     ? categoryIndex(parentLocation.categoryId)
     : 0;
@@ -83,10 +88,12 @@ export function TaskRow({
           { value: suggestedMonth, label: monthLabel(suggestedMonth) },
         ]
       : board.gmMonthOptions;
+  const gmCategoryId = isOverdue ? startCategoryId : categoryId;
   const gmDate =
     gmEvent || task.tags?.includes("gm")
-      ? gmDateLabel(isOverdue ? startCategoryId : categoryId)
+      ? gmDateLabel(gmCategoryId, board.meetingSchedule.weekday)
       : null;
+  const gmTime = gmDate ? meetingTimeLabel(board.meetingSchedule.time) : null;
   const rowKey = `${task.id}:${categoryId}`;
   const descriptionId = `description-${task.id}-${categoryId}`;
   const editorId = `editor-${task.id}-${categoryId}`;
@@ -186,6 +193,22 @@ export function TaskRow({
         >
           {viewing ? "▾" : "▸"}
         </button>
+        {isTodo && (
+          <input
+            type="date"
+            value={task.dueDate ?? ""}
+            onChange={(event) =>
+              board.setTodoDueDate(
+                startCategoryId,
+                task.id,
+                event.target.value,
+              )
+            }
+            aria-label={`Due date for "${task.text}"`}
+            title="Optional due date"
+            className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 transition-colors hover:border-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:focus:border-zinc-600"
+          />
+        )}
         <button
           type="button"
           onClick={() => board.togglePanel(task.id, categoryId, "edit")}
@@ -257,7 +280,7 @@ export function TaskRow({
             </select>
           </>
         )}
-        {isStart && !isSubtask && !isGmIdea && (
+        {isStart && !isSubtask && !isGmIdea && !isTodo && (
           <button
             type="button"
             onClick={() => {
@@ -285,7 +308,7 @@ export function TaskRow({
             {gmEvent ? "Add task" : "+"}
           </button>
         )}
-        {isStart && !isGmIdea && (
+        {isStart && !isGmIdea && !isTodo && (
           <select
             value={startCategoryId}
             onChange={(event) =>
@@ -327,6 +350,7 @@ export function TaskRow({
         isOverdue ||
         isGmIdea ||
         assignedIdea ||
+        task.recurring ||
         task.gmSuggestedMonth) && (
         <div className="mt-1 flex flex-wrap items-center gap-1 pl-7">
           {isOverdue && (
@@ -363,6 +387,14 @@ export function TaskRow({
               className="rounded-full border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700 dark:border-indigo-400/60 dark:bg-indigo-400/15 dark:text-indigo-300"
             >
               GM idea
+            </span>
+          )}
+          {task.recurring && (
+            <span
+              title="Recurring task for this week's e-board meeting"
+              className="rounded-full border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              Weekly
             </span>
           )}
           {task.gmSuggestedMonth && (isGmIdea || assignedIdea) && (
@@ -402,10 +434,11 @@ export function TaskRow({
           )}
           {gmDate && (
             <span
-              title="GM always happens on Wednesday"
+              title="Weekly GM / e-board meeting"
               className="rounded-full border border-zinc-300 bg-white px-2 py-0.5 text-[10px] font-medium tabular-nums text-zinc-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200"
             >
               {gmDate}
+              {gmTime ? ` · ${gmTime}` : ""}
             </span>
           )}
           {task.endCategoryId && (

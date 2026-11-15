@@ -3,8 +3,8 @@
 A web app for keeping track of tasks and events.
 
 Tasks are grouped into tabs: before the year (the end of the prior spring
-semester and summer), the fall semester, the spring semester, and a GM ideas
-backlog. Each semester's numbered weeks are grounded in the USC academic
+semester and summer), the fall semester, the spring semester, a GM ideas
+backlog, and a to-do list. Each semester's numbered weeks are grounded in the USC academic
 calendar: Fall Week 1 and Spring Week 1 start on their Classes Begin dates, the
 last week ends on Classes End, and each week header shows its date range. The
 final week is shortened when Classes End falls before
@@ -39,6 +39,37 @@ agenda items or follow-up work. The GM ideas tab keeps a running backlog of
 ideas; an idea can suggest a month, and GM weeks in that month are grouped
 first in the assignment picker. Assigning an idea to a GM turns it into a task
 for that meeting, and Return to ideas sends it back to the backlog.
+
+The weekly e-board meeting control at the top of the board stores the meeting's
+day of the week and time. GM rows and the GM assignment picker use that slot,
+so changing it updates every week at once.
+
+The to-do tab is a simple checklist with optional due dates. Open items are
+grouped as overdue, urgent (due today or tomorrow), within the next week,
+within the next month, and later or undated; completed items move to their own
+group. To-dos use the same checkboxes, notes, tags, and editing controls, but
+they are not tied to a week and do not use spans, ordering rules, or subtasks.
+
+When the week containing today has a GM, that GM gets two recurring prep tasks:
+"Update social points" and "Make GM slides". They are created only for the
+current GM week rather than seeded across the whole year, so future weeks stay
+clear until they become current. Deleting one does not recreate it, and
+unfinished recurring tasks do not carry forward into later weeks.
+
+Weeks that have an e-board meeting also get a "Make e-board meeting agenda"
+to-do, due on the meeting day. Holidays are checked against that exact date, so
+Veterans Day only skips the agenda when the meeting falls on November 11, and a
+Thursday-Friday recess does not cancel a Wednesday meeting. Only the current
+week's agenda is kept, so the checklist does not collect one unfinished agenda
+per week.
+
+The E-board agenda tab drafts the next meeting. It pulls open events from every
+week the meeting covers, plus open to-dos due by the end of that coverage. A
+meeting after Wednesday's GM starts with the following week, so it plans the
+next GM rather than repeating the one that just happened; an earlier meeting
+starts with its own week. A week whose meeting day is a USC holiday has no
+meeting, so its items roll into the meeting before it; for example, Thanksgiving
+week items appear on the previous week's agenda.
 
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.

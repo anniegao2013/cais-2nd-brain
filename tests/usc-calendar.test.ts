@@ -14,6 +14,7 @@ import {
 } from "../lib/usc-calendar";
 import {
   USC_TIMELINE_HOLIDAYS,
+  holidayOnDate,
   timelineHolidays,
 } from "../lib/usc-holidays";
 
@@ -288,6 +289,23 @@ describe("timelineHolidays", () => {
     ]);
 
     expect(holiday.id).toBe("usc-holiday-2026-09-07-labor-day-holiday");
+  });
+});
+
+describe("holidayOnDate", () => {
+  it("matches the holiday that covers a real date", () => {
+    expect(holidayOnDate("2026-09-07")?.label).toBe("Labor Day Holiday");
+    expect(holidayOnDate("2026-11-11")?.label).toBe("Veterans Day Holiday");
+    expect(holidayOnDate("2026-11-25")?.label).toBe("Thanksgiving Holiday");
+    expect(holidayOnDate("2026-11-29")?.label).toBe("Thanksgiving Holiday");
+  });
+
+  it("does not treat the rest of a holiday week as a holiday", () => {
+    expect(holidayOnDate("2026-10-07")).toBeNull(); // Wednesday of Fall Recess week
+    expect(holidayOnDate("2026-10-08")?.label).toBe("Fall Recess"); // Thursday
+    expect(holidayOnDate("2026-10-12")).toBeNull();
+    expect(holidayOnDate("2026-11-10")).toBeNull(); // Tuesday before Veterans Day
+    expect(holidayOnDate("2026-11-12")).toBeNull(); // Thursday after Veterans Day
   });
 });
 

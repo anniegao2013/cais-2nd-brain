@@ -2,6 +2,7 @@ import {
   CATEGORIES,
   categoryIndex,
   isGmIdeasCategory,
+  isTodoCategory,
   sectionLabel,
 } from "./categories";
 import { weekInfoFromCategoryId } from "./calendar";
@@ -23,8 +24,8 @@ export function taskOccurrences(
   state: AppState,
   categoryId: string,
 ): TaskOccurrence[] {
-  // The GM ideas backlog has no dates or spans: every idea is one row.
-  if (isGmIdeasCategory(categoryId)) {
+  // The backlog lists have no dates or spans: every item is one row.
+  if (isGmIdeasCategory(categoryId) || isTodoCategory(categoryId)) {
     return (state.tasks[categoryId] ?? []).map((task) => ({
       task,
       startCategoryId: categoryId,
@@ -79,7 +80,13 @@ export function overdueWeekOccurrences(
       const parent = task.parentId
         ? findTask(state, task.parentId)?.task
         : undefined;
-      if (task.done || task.isHoliday || task.suggested || parent?.suggested) {
+      if (
+        task.done ||
+        task.isHoliday ||
+        task.suggested ||
+        task.recurring ||
+        parent?.suggested
+      ) {
         continue;
       }
 

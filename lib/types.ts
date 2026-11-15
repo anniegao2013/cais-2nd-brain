@@ -15,8 +15,12 @@ export type Task = {
   suggested?: boolean;
   // Set when an idea from the GM ideas backlog has been assigned to a GM.
   gmIdea?: boolean;
-  // Optional YYYY-MM suggestion for when an idea should be discussed.
+  // A task generated for the current week's GM, such as weekly prep work.
+  recurring?: boolean;
+  // Optional YYYY-MM-DD suggestion for when an idea should be discussed.
   gmSuggestedMonth?: string;
+  // Optional YYYY-MM-DD due date for an undated to-do.
+  dueDate?: string;
   // Set on an interest poll when enough people said they want the event.
   interested?: boolean;
   // USC academic-calendar dates are shown as reference events, not tasks, so
@@ -26,6 +30,13 @@ export type Task = {
 
 export type TasksByCategory = Record<string, Task[]>;
 
+export type MeetingSchedule = {
+  // 0 = Sunday, matching Date#getDay().
+  weekday: number;
+  // 24-hour "HH:MM" from the time input.
+  time: string;
+};
+
 // An edge means `before` must happen earlier than `after`.
 export type Dependency = { before: string; after: string };
 
@@ -33,6 +44,9 @@ export type AppState = {
   tasks: TasksByCategory;
   removedDefaults: string[];
   dependencies: Dependency[];
+  // Weekly slot for the GM / e-board meeting. Older saves fall back to the
+  // default Wednesday evening slot.
+  meetingSchedule?: MeetingSchedule;
 };
 
 export type TaskOccurrence = {

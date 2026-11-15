@@ -3,6 +3,7 @@ import {
   CATEGORIES,
   categoryIndex,
   isGmIdeasCategory,
+  isTodoCategory,
   sectionLabel,
 } from "@/lib/categories";
 import { findTask, spanLabel } from "@/lib/tasks";
@@ -30,6 +31,7 @@ export function TaskEditPanel({
     (edge) => edge.before === task.id,
   );
   const gmIdea = isGmIdeasCategory(startCategoryId);
+  const todo = isTodoCategory(startCategoryId);
 
   return (
     <>
@@ -37,6 +39,19 @@ export function TaskEditPanel({
         <p className="mb-3 rounded-md border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-400/40 dark:bg-indigo-400/10 dark:text-indigo-300">
           This is an idea for a future GM. Suggest a month on the idea row to
           group matching GM weeks, then use Assign to GM to schedule it.
+        </p>
+      )}
+      {todo && (
+        <p className="mb-3 rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
+          This is a general to-do that is not tied to a week. Check it off when
+          it is done; use tags and notes to keep the list organized.
+        </p>
+      )}
+      {task.recurring && (
+        <p className="mb-3 rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
+          {todo
+            ? "This weekly e-board agenda appears when the current week has an e-board meeting. Completing or deleting it only affects this week's occurrence."
+            : "This weekly prep task appears when the current week has a GM. Completing or deleting it only affects this week's occurrence."}
         </p>
       )}
       {(task.suggested || parent?.suggested) && (
@@ -115,7 +130,7 @@ export function TaskEditPanel({
             );
           })}
         </div>
-        {!gmIdea && (
+        {!gmIdea && !todo && (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -154,7 +169,7 @@ export function TaskEditPanel({
           </>
         )}
       </div>
-      {task.parentId && parent && (
+      {task.parentId && parent && !todo && (
         <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
             <span className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -193,7 +208,7 @@ export function TaskEditPanel({
           </p>
         </div>
       )}
-      {!gmIdea && (
+      {!gmIdea && !todo && (
         <div className="mb-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
           <div className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
             Ordering

@@ -1,9 +1,10 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { weekRangeLabel } from "@/lib/calendar";
-import { tabForCategoryId } from "@/lib/categories";
+import { isTodoCategory, tabForCategoryId } from "@/lib/categories";
 import { overdueWeekOccurrences, taskOccurrences } from "@/lib/tasks";
 import { AddTaskForm } from "./add-task-form";
 import { TaskRow } from "./task-row";
+import { TodoGroups } from "./todo-groups";
 
 export function TaskSection({
   board,
@@ -19,6 +20,7 @@ export function TaskSection({
   const currentWeekInThisTab =
     currentWeekCategoryId !== null &&
     tabForCategoryId(currentWeekCategoryId) === tabForCategoryId(category.id);
+  const todo = isTodoCategory(category.id);
   const overdue = currentWeekInThisTab
     ? overdueWeekOccurrences(board.state, currentWeekCategoryId)
     : [];
@@ -112,19 +114,27 @@ export function TaskSection({
         </div>
       )}
 
-      {occurrences.length > 0 && (
-        <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-          {occurrences.map(({ task, startCategoryId, isStart }) => (
-            <TaskRow
-              key={`${task.id}:${category.id}`}
-              board={board}
-              task={task}
-              startCategoryId={startCategoryId}
-              categoryId={category.id}
-              isStart={isStart}
-            />
-          ))}
-        </ul>
+      {todo ? (
+        <TodoGroups
+          board={board}
+          categoryId={category.id}
+          occurrences={occurrences}
+        />
+      ) : (
+        occurrences.length > 0 && (
+          <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+            {occurrences.map(({ task, startCategoryId, isStart }) => (
+              <TaskRow
+                key={`${task.id}:${category.id}`}
+                board={board}
+                task={task}
+                startCategoryId={startCategoryId}
+                categoryId={category.id}
+                isStart={isStart}
+              />
+            ))}
+          </ul>
+        )
       )}
 
       <AddTaskForm board={board} category={category} />

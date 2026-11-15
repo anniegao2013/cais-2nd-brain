@@ -247,28 +247,59 @@ export function timelineRangeLabel(): string {
   return semesterRangeLabel("fall");
 }
 
-// GM events always happen on the Wednesday of the week they are listed under.
-export function weekWednesdayISO(categoryId: string): string | null {
+// The meeting falls on the selected weekday of the week it is listed under.
+export function weekMeetingISO(
+  categoryId: string,
+  weekday: number,
+): string | null {
   const info = weekInfoFromCategoryId(categoryId);
   if (!info) return null;
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
 
   const semester = semesterById(info.semesterId);
   const startMs = semester.startMs + (info.week - 1) * WEEK_MS;
   const startDay = new Date(startMs).getUTCDay();
-  const daysUntilWednesday = (3 - startDay + 7) % 7;
-  return toISODate(startMs + daysUntilWednesday * DAY_MS);
+  const offset = (weekday - startDay + 7) % 7;
+  return toISODate(startMs + offset * DAY_MS);
 }
 
-export function gmDateLabel(categoryId: string): string | null {
-  const iso = weekWednesdayISO(categoryId);
-  if (!iso) return null;
+// Wednesdays remain the default GM date for older callers.
+export function weekWednesdayISO(categoryId: string): string | null {
+  return weekMeetingISO(categoryId, 3);
+}
+
+export function isoDateLabel(iso: string): string {
   return weekdayDate.format(new Date(`${iso}T00:00:00Z`));
+}
+
+export function gmDateLabel(
+  categoryId: string,
+  weekday = 3,
+): string | null {
+  const iso = weekMeetingISO(categoryId, weekday);
+  if (!iso) return null;
+  return isoDateLabel(iso);
 }
 
 const MONTH_KEY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export function isMonthKey(value: unknown): value is string {
   return typeof value === "string" && MONTH_KEY_PATTERN.test(value);
+}
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// A real calendar date, not just a correctly shaped string (for example,
+// 2026-02-30 is rejected).
+export function isISODate(value: unknown): value is string {
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && toISODate(date.getTime()) === value;
+}
+
+// Uses the viewer's local calendar date, matching the current-week indicator.
+export function todayISODate(now: Date = new Date()): string {
+  return localISODate(now);
 }
 
 export function monthKeyForISO(iso: string): string {

@@ -4,8 +4,9 @@ import {
   DEFAULT_EVENTS,
   DEFAULT_STATE,
 } from "./defaults";
-import { isMonthKey } from "./calendar";
+import { isMonthKey, isISODate } from "./calendar";
 import { isDependency, pruneDependencies } from "./dependencies";
+import { isMeetingSchedule } from "./meeting";
 import { sanitizeSubtaskPlacement } from "./placement";
 import { syncSocialFollowUps } from "./social-polls";
 import { isTagId, type TagId } from "./tags";
@@ -44,6 +45,13 @@ export function normalizeStorage(raw: string): AppState {
   const dependencies = Array.isArray(storedDependencies)
     ? storedDependencies.filter(isDependency)
     : DEFAULT_DEPENDENCIES;
+  const storedMeetingSchedule =
+    parsed && typeof parsed === "object" && "meetingSchedule" in parsed
+      ? (parsed as AppState).meetingSchedule
+      : undefined;
+  const meetingSchedule = isMeetingSchedule(storedMeetingSchedule)
+    ? storedMeetingSchedule
+    : undefined;
 
   const cleaned: TasksByCategory = {};
   for (const [categoryId, list] of Object.entries(tasks)) {
@@ -72,6 +80,9 @@ export function normalizeStorage(raw: string): AppState {
             !isMonthKey(next.gmSuggestedMonth)
           ) {
             delete next.gmSuggestedMonth;
+          }
+          if (next.dueDate !== undefined && !isISODate(next.dueDate)) {
+            delete next.dueDate;
           }
           if (seed?.leadWeeks !== undefined && next.leadWeeks === undefined) {
             next.leadWeeks = seed.leadWeeks;
@@ -147,6 +158,7 @@ export function normalizeStorage(raw: string): AppState {
       tasks: cleaned,
       removedDefaults,
       dependencies: pruneDependencies(dependencies, cleaned),
+      ...(meetingSchedule ? { meetingSchedule } : {}),
     }),
   );
 }

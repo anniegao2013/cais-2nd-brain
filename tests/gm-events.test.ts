@@ -4,12 +4,32 @@ import {
   SPRING_SEMESTER,
   categoryIdForWeek,
 } from "../lib/calendar";
-import { GM_TEXT, gmEventId, isGmEvent, weeklyGmEvents } from "../lib/gm-events";
+import {
+  GM_TEXT,
+  gmEventId,
+  isGmEvent,
+  isMeetingWeek,
+  weeklyGmEvents,
+} from "../lib/gm-events";
 import { USC_TIMELINE_HOLIDAYS } from "../lib/usc-holidays";
 
 function gmCategories(): string[] {
   return weeklyGmEvents().map((event) => event.category);
 }
+
+describe("isMeetingWeek", () => {
+  it("matches the weeks that get a GM", () => {
+    for (const event of weeklyGmEvents()) {
+      expect(isMeetingWeek(event.category)).toBe(true);
+    }
+
+    expect(isMeetingWeek("week-12")).toBe(false); // Veterans Day
+    expect(isMeetingWeek("week-7")).toBe(false); // Fall Recess
+    expect(isMeetingWeek("week-14")).toBe(false); // Thanksgiving
+    expect(isMeetingWeek("spring-week-10")).toBe(false); // Spring Recess
+    expect(isMeetingWeek("summer")).toBe(false);
+  });
+});
 
 describe("weeklyGmEvents", () => {
   it("adds a GM to every fall week without a holiday conflict", () => {

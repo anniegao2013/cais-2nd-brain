@@ -1,6 +1,7 @@
 import { SPRING_SEMESTER, categoryIdForDate } from "./calendar";
 import { sortState } from "./dependencies";
 import { weeklyGmEvents } from "./gm-events";
+import { DEFAULT_MEETING_SCHEDULE } from "./meeting";
 import { syncSocialFollowUps } from "./social-polls";
 import type { TagId } from "./tags";
 import type { AppState, Dependency, TasksByCategory } from "./types";
@@ -303,6 +304,7 @@ function buildDefaultState(): AppState {
       tasks,
       removedDefaults: [],
       dependencies: DEFAULT_DEPENDENCIES,
+      meetingSchedule: DEFAULT_MEETING_SCHEDULE,
     }),
   );
 }

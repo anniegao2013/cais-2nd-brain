@@ -2,7 +2,13 @@ import { SPRING_WEEK_COUNT, WEEK_COUNT } from "./calendar";
 
 export type Category = { id: string; label: string };
 
-export type TimelineTabId = "before" | "fall" | "spring" | "gm-ideas";
+export type TimelineTabId =
+  | "before"
+  | "fall"
+  | "spring"
+  | "gm-ideas"
+  | "todos"
+  | "eboard-agenda";
 
 export type TimelineTab = {
   id: TimelineTabId;
@@ -20,6 +26,17 @@ export const GM_IDEAS_CATEGORY: Category = {
 
 export function isGmIdeasCategory(categoryId: string): boolean {
   return categoryId === GM_IDEAS_CATEGORY_ID;
+}
+
+// A plain checklist for work that is not tied to a week yet.
+export const TODO_CATEGORY_ID = "todos";
+export const TODO_CATEGORY: Category = {
+  id: TODO_CATEGORY_ID,
+  label: "To-do",
+};
+
+export function isTodoCategory(categoryId: string): boolean {
+  return categoryId === TODO_CATEGORY_ID;
 }
 
 const BEFORE_CATEGORIES: Category[] = [
@@ -70,10 +87,20 @@ export const TIMELINE_TABS: TimelineTab[] = [
     label: GM_IDEAS_CATEGORY.label,
     categoryIds: [GM_IDEAS_CATEGORY_ID],
   },
+  {
+    id: "todos",
+    label: TODO_CATEGORY.label,
+    categoryIds: [TODO_CATEGORY_ID],
+  },
+  {
+    id: "eboard-agenda",
+    label: "E-board agenda",
+    categoryIds: [],
+  },
 ];
 
 const CATEGORY_BY_ID = new Map(
-  [...CATEGORIES, GM_IDEAS_CATEGORY].map((category) => [
+  [...CATEGORIES, GM_IDEAS_CATEGORY, TODO_CATEGORY].map((category) => [
     category.id,
     category,
   ]),
@@ -90,6 +117,7 @@ export function categoriesForTab(tabId: TimelineTabId): Category[] {
 
 export function tabForCategoryId(categoryId: string): TimelineTabId {
   if (isGmIdeasCategory(categoryId)) return "gm-ideas";
+  if (isTodoCategory(categoryId)) return "todos";
   if (categoryId === "spring" || categoryId === "summer") return "before";
   if (categoryId.startsWith("week-")) return "fall";
   if (categoryId.startsWith("spring-week-")) return "spring";
