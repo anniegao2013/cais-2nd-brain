@@ -24,6 +24,9 @@ function tabSummary(tabId: TimelineTabId): string {
   if (tabId === "gm-ideas") {
     return "A running list of ideas for future GMs. Assign an idea to a GM to schedule it.";
   }
+  if (tabId === "todos") {
+    return "A checklist grouped by due date: overdue, urgent, next week, and next month.";
+  }
 
   const weekCount = tabId === "fall" ? WEEK_COUNT : SPRING_WEEK_COUNT;
   const prefix = tabId === "fall" ? "Fall weeks" : "Spring weeks";
@@ -126,12 +129,14 @@ export default function TaskBoard() {
         task title to read the description, and use Edit to change the title,
         description, tags, span, and ordering rules. Ordering can also be set
         when adding an event. Use the tabs to switch between the pre-year list,
-        each semester, and the GM ideas backlog. Suggest a month for an idea to
-        group matching GM weeks first, then assign it to one of them; Return to
-        ideas sends it back. The filter bar shows only tasks with selected tags.
-        Tasks marked Suggestion are just ideas for social events, not events
-        that are already planned: keep, move, rename, or delete them as you
-        like.
+        each semester, the GM ideas backlog, and the to-do list. Suggest a month
+        for an idea to group matching GM weeks first, then assign it to one of
+        them; Return to ideas sends it back. To-dos are undated reminders unless
+        you add a due date; items are grouped as overdue, urgent (today or
+        tomorrow), within the next week, within the next month, or later. The
+        filter bar shows only tasks with selected tags. Tasks marked Suggestion
+        are just ideas for social events, not events that are already planned:
+        keep, move, rename, or delete them as you like.
       </p>
 
       <TagFilter board={board} />

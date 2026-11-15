@@ -271,6 +271,21 @@ export function isMonthKey(value: unknown): value is string {
   return typeof value === "string" && MONTH_KEY_PATTERN.test(value);
 }
 
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// A real calendar date, not just a correctly shaped string (for example,
+// 2026-02-30 is rejected).
+export function isISODate(value: unknown): value is string {
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && toISODate(date.getTime()) === value;
+}
+
+// Uses the viewer's local calendar date, matching the current-week indicator.
+export function todayISODate(now: Date = new Date()): string {
+  return localISODate(now);
+}
+
 export function monthKeyForISO(iso: string): string {
   return iso.slice(0, 7);
 }

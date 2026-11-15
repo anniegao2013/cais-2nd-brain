@@ -96,6 +96,7 @@ export function useTaskBoard() {
       afterId: String(data.get("after") ?? ""),
       beforeId: String(data.get("before") ?? ""),
       endCategoryId: String(data.get("end") ?? ""),
+      dueDate: String(data.get("due") ?? ""),
     });
 
     if (result.error) {
@@ -316,6 +317,11 @@ export function useTaskBoard() {
     if (next) setState(next);
   }
 
+  function setTodoDueDate(categoryId: string, taskId: string, dueDate: string) {
+    const next = taskActions.setTodoDueDate(state, categoryId, taskId, dueDate);
+    if (next) setState(next);
+  }
+
   const tasks = allTasks(state);
   const totalTaskCount = tasks.length;
   const filteredTaskCount = tasks.filter(matchesFilter).length;
@@ -374,6 +380,7 @@ export function useTaskBoard() {
     assignGmIdea,
     returnGmIdea,
     setGmIdeaSuggestedMonth,
+    setTodoDueDate,
   };
 }
 

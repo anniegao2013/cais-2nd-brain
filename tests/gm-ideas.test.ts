@@ -33,6 +33,7 @@ describe("GM ideas tab", () => {
       "fall",
       "spring",
       "gm-ideas",
+      "todos",
     ]);
     expect(categoriesForTab("gm-ideas")).toEqual([GM_IDEAS_CATEGORY]);
     expect(tabForCategoryId(GM_IDEAS_CATEGORY_ID)).toBe("gm-ideas");

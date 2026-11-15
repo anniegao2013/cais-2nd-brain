@@ -4,7 +4,7 @@ import {
   DEFAULT_EVENTS,
   DEFAULT_STATE,
 } from "./defaults";
-import { isMonthKey } from "./calendar";
+import { isISODate, isMonthKey } from "./calendar";
 import { isDependency, pruneDependencies } from "./dependencies";
 import { sanitizeSubtaskPlacement } from "./placement";
 import { syncSocialFollowUps } from "./social-polls";
@@ -72,6 +72,9 @@ export function normalizeStorage(raw: string): AppState {
             !isMonthKey(next.gmSuggestedMonth)
           ) {
             delete next.gmSuggestedMonth;
+          }
+          if (next.dueDate !== undefined && !isISODate(next.dueDate)) {
+            delete next.dueDate;
           }
           if (seed?.leadWeeks !== undefined && next.leadWeeks === undefined) {
             next.leadWeeks = seed.leadWeeks;

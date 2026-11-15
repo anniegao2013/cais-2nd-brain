@@ -15,8 +15,10 @@ export type Task = {
   suggested?: boolean;
   // Set when an idea from the GM ideas backlog has been assigned to a GM.
   gmIdea?: boolean;
-  // Optional YYYY-MM suggestion for when an idea should be discussed.
+  // Optional YYYY-MM-DD suggestion for when an idea should be discussed.
   gmSuggestedMonth?: string;
+  // Optional YYYY-MM-DD due date for an undated to-do.
+  dueDate?: string;
   // Set on an interest poll when enough people said they want the event.
   interested?: boolean;
   // USC academic-calendar dates are shown as reference events, not tasks, so

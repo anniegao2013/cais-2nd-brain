@@ -2,6 +2,7 @@ import {
   CATEGORIES,
   categoryIndex,
   isGmIdeasCategory,
+  isTodoCategory,
   sectionLabel,
 } from "@/lib/categories";
 import { isGmEvent } from "@/lib/gm-events";
@@ -50,8 +51,11 @@ export function TaskRow({
     : "";
   const gmIdeaRow = isGmIdeasCategory(startCategoryId)
     ? "my-1 rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 dark:border-indigo-400/40 dark:bg-indigo-400/5"
-    : "";
+    : isTodoCategory(startCategoryId)
+      ? "my-1 rounded-md border border-zinc-200 bg-zinc-50/60 px-2.5 dark:border-zinc-800 dark:bg-zinc-900/40"
+      : "";
   const isGmIdea = isGmIdeasCategory(startCategoryId);
+  const isTodo = isTodoCategory(startCategoryId);
   const parentMaxIndex = parentLocation
     ? categoryIndex(parentLocation.categoryId)
     : 0;
@@ -186,6 +190,22 @@ export function TaskRow({
         >
           {viewing ? "▾" : "▸"}
         </button>
+        {isTodo && (
+          <input
+            type="date"
+            value={task.dueDate ?? ""}
+            onChange={(event) =>
+              board.setTodoDueDate(
+                startCategoryId,
+                task.id,
+                event.target.value,
+              )
+            }
+            aria-label={`Due date for "${task.text}"`}
+            title="Optional due date"
+            className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 transition-colors hover:border-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:focus:border-zinc-600"
+          />
+        )}
         <button
           type="button"
           onClick={() => board.togglePanel(task.id, categoryId, "edit")}
@@ -257,7 +277,7 @@ export function TaskRow({
             </select>
           </>
         )}
-        {isStart && !isSubtask && !isGmIdea && (
+        {isStart && !isSubtask && !isGmIdea && !isTodo && (
           <button
             type="button"
             onClick={() => {
@@ -285,7 +305,7 @@ export function TaskRow({
             {gmEvent ? "Add task" : "+"}
           </button>
         )}
-        {isStart && !isGmIdea && (
+        {isStart && !isGmIdea && !isTodo && (
           <select
             value={startCategoryId}
             onChange={(event) =>

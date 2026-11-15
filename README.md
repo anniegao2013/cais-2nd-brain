@@ -3,8 +3,8 @@
 A web app for keeping track of tasks and events.
 
 Tasks are grouped into tabs: before the year (the end of the prior spring
-semester and summer), the fall semester, the spring semester, and a GM ideas
-backlog. Each semester's numbered weeks are grounded in the USC academic
+semester and summer), the fall semester, the spring semester, a GM ideas
+backlog, and a to-do list. Each semester's numbered weeks are grounded in the USC academic
 calendar: Fall Week 1 and Spring Week 1 start on their Classes Begin dates, the
 last week ends on Classes End, and each week header shows its date range. The
 final week is shortened when Classes End falls before
@@ -39,6 +39,12 @@ agenda items or follow-up work. The GM ideas tab keeps a running backlog of
 ideas; an idea can suggest a month, and GM weeks in that month are grouped
 first in the assignment picker. Assigning an idea to a GM turns it into a task
 for that meeting, and Return to ideas sends it back to the backlog.
+
+The to-do tab is a simple checklist with optional due dates. Open items are
+grouped as overdue, urgent (due today or tomorrow), within the next week,
+within the next month, and later or undated; completed items move to their own
+group. To-dos use the same checkboxes, notes, tags, and editing controls, but
+they are not tied to a week and do not use spans, ordering rules, or subtasks.
 
 Holidays and recesses from the USC academic calendar are mapped into the dated
 weeks as reference dates: they use their own styling and cannot be checked off.

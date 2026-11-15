@@ -3,9 +3,10 @@ import {
   GM_IDEAS_CATEGORY_ID,
   categoryIndex,
   isGmIdeasCategory,
+  isTodoCategory,
   sectionLabel,
 } from "./categories";
-import { weekInfoFromCategoryId, isMonthKey } from "./calendar";
+import { weekInfoFromCategoryId, isISODate, isMonthKey } from "./calendar";
 import { sortState } from "./dependencies";
 import { isGmEvent } from "./gm-events";
 import { cleanNotes } from "./notes";
@@ -22,6 +23,7 @@ export type NewTaskInput = {
   afterId: string;
   beforeId: string;
   endCategoryId: string;
+  dueDate?: string;
 };
 
 export function addTask(
@@ -32,15 +34,18 @@ export function addTask(
   const text = input.text.trim();
   if (!text) return {};
 
-  // Ideas are a plain backlog: ordering and spans do not apply.
-  if (isGmIdeasCategory(categoryId)) {
-    const idea: Task = { id: crypto.randomUUID(), text, done: false };
+  // Ideas and to-dos are plain lists: ordering and spans do not apply.
+  if (isGmIdeasCategory(categoryId) || isTodoCategory(categoryId)) {
+    const task: Task = { id: crypto.randomUUID(), text, done: false };
+    if (isTodoCategory(categoryId) && isISODate(input.dueDate)) {
+      task.dueDate = input.dueDate;
+    }
     return {
       state: {
         ...state,
         tasks: {
           ...state.tasks,
-          [categoryId]: [...(state.tasks[categoryId] ?? []), idea],
+          [categoryId]: [...(state.tasks[categoryId] ?? []), task],
         },
       },
     };
@@ -142,9 +147,11 @@ export function addSubtask(
 
   const parent = findTask(state, parentId);
   if (!parent) return null;
-  // Ideas do not have subtasks; assign them to a GM instead.
-  if (isGmIdeasCategory(parent.categoryId)) return null;
-  if (isGmIdeasCategory(categoryId)) return null;
+  // Ideas and to-dos do not have subtasks; assign ideas to a GM instead.
+  if (isGmIdeasCategory(parent.categoryId) || isTodoCategory(parent.categoryId)) {
+    return null;
+  }
+  if (isGmIdeasCategory(categoryId) || isTodoCategory(categoryId)) return null;
   if (categoryIndex(categoryId) > categoryIndex(parent.categoryId)) {
     return null;
   }
@@ -349,8 +356,14 @@ export function moveTask(
   toCategoryId: string,
 ): AppState | null {
   if (fromCategoryId === toCategoryId) return null;
-  // The GM ideas backlog is managed through assign/return, not free moves.
-  if (isGmIdeasCategory(fromCategoryId) || isGmIdeasCategory(toCategoryId)) {
+  // The GM ideas backlog is managed through assign/return, and to-dos are not
+  // tied to the calendar, so free moves do not apply to either.
+  if (
+    isGmIdeasCategory(fromCategoryId) ||
+    isGmIdeasCategory(toCategoryId) ||
+    isTodoCategory(fromCategoryId) ||
+    isTodoCategory(toCategoryId)
+  ) {
     return null;
   }
 
@@ -480,6 +493,38 @@ export function returnGmIdea(
   ];
 
   return sortState({ ...state, tasks });
+}
+
+export function setTodoDueDate(
+  state: AppState,
+  categoryId: string,
+  taskId: string,
+  rawDueDate: string,
+): AppState | null {
+  if (!isTodoCategory(categoryId)) return null;
+
+  const dueDate = rawDueDate.trim();
+  if (dueDate && !isISODate(dueDate)) return null;
+  if (!(state.tasks[categoryId] ?? []).some((task) => task.id === taskId)) {
+    return null;
+  }
+
+  return {
+    ...state,
+    tasks: {
+      ...state.tasks,
+      [categoryId]: (state.tasks[categoryId] ?? []).map((task) => {
+        if (task.id !== taskId) return task;
+        const next = { ...task };
+        if (dueDate) {
+          next.dueDate = dueDate;
+        } else {
+          delete next.dueDate;
+        }
+        return next;
+      }),
+    },
+  };
 }
 
 // A month is a rough target, so it stays attached to the idea until a specific
