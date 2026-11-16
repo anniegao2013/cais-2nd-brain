@@ -7,6 +7,7 @@ import {
   sectionLabel,
 } from "./categories";
 import { weekInfoFromCategoryId, isISODate, isMonthKey } from "./calendar";
+import { MAX_DELETED_BATCHES } from "./deleted-tasks";
 import { sortState } from "./dependencies";
 import { isGmEvent } from "./gm-events";
 import { cleanNotes } from "./notes";
@@ -14,7 +15,7 @@ import { clampTaskSpan, moveBounds, shiftTaskSpan } from "./placement";
 import { syncSocialFollowUps } from "./social-polls";
 import { findTask } from "./tasks";
 import type { TagId } from "./tags";
-import type { AppState, Task, TasksByCategory } from "./types";
+import type { AppState, DeletedBatch, Task, TasksByCategory } from "./types";
 
 type TaskActionResult = { state?: AppState; error?: string };
 
@@ -315,7 +316,8 @@ export function toggleTaskDone(
 export function deleteTask(
   state: AppState,
   taskId: string,
-): { state: AppState; removedIds: Set<string> } | null {
+  deletedAt: string = new Date().toISOString(),
+): { state: AppState; removedIds: Set<string>; deleted: DeletedBatch } | null {
   const task = findTask(state, taskId)?.task;
   if (!task) return null;
 
@@ -329,10 +331,25 @@ export function deleteTask(
     }
   }
 
+  const removedTasks: DeletedBatch["tasks"] = [];
   const tasks: TasksByCategory = {};
   for (const [id, list] of Object.entries(state.tasks)) {
-    tasks[id] = list.filter((candidate) => !removedIds.has(candidate.id));
+    tasks[id] = list.filter((candidate) => {
+      if (!removedIds.has(candidate.id)) return true;
+      removedTasks.push({ categoryId: id, task: candidate });
+      return false;
+    });
   }
+
+  const removedDependencies = state.dependencies.filter(
+    (edge) => removedIds.has(edge.before) || removedIds.has(edge.after),
+  );
+  const deleted: DeletedBatch = {
+    id: crypto.randomUUID(),
+    deletedAt,
+    tasks: removedTasks,
+    dependencies: removedDependencies,
+  };
 
   return {
     state: {
@@ -344,8 +361,13 @@ export function deleteTask(
       removedDefaults: [
         ...new Set([...state.removedDefaults, ...removedIds]),
       ],
+      deletedTasks: [deleted, ...(state.deletedTasks ?? [])].slice(
+        0,
+        MAX_DELETED_BATCHES,
+      ),
     },
     removedIds,
+    deleted,
   };
 }
 

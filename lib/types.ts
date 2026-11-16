@@ -40,6 +40,15 @@ export type MeetingSchedule = {
 // An edge means `before` must happen earlier than `after`.
 export type Dependency = { before: string; after: string };
 
+// One delete action can remove a parent and its subtasks. Keeping the whole
+// group together means one restore puts everything back where it was.
+export type DeletedBatch = {
+  id: string;
+  deletedAt: string;
+  tasks: Array<{ categoryId: string; task: Task }>;
+  dependencies: Dependency[];
+};
+
 export type AppState = {
   tasks: TasksByCategory;
   removedDefaults: string[];
@@ -47,6 +56,8 @@ export type AppState = {
   // Weekly slot for the GM / e-board meeting. Older saves fall back to the
   // default Wednesday evening slot.
   meetingSchedule?: MeetingSchedule;
+  // Recent deletions, newest first, so they can be reviewed and restored.
+  deletedTasks?: DeletedBatch[];
 };
 
 export type TaskOccurrence = {

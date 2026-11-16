@@ -18,6 +18,8 @@ import { TagFilter } from "./tag-filter";
 import { TaskSection } from "./task-section";
 import { MeetingSchedulePicker } from "./meeting-schedule-picker";
 import { EboardAgenda } from "./eboard-agenda";
+import { HistoryControls } from "./history-controls";
+import { DeletedTasks } from "./deleted-tasks";
 
 function tabSummary(tabId: TimelineTabId): string {
   if (tabId === "before") {
@@ -170,7 +172,15 @@ function TaskBoardContent({ board }: { board: TaskBoardController }) {
         them.
       </p>
 
-      <TagFilter board={board} />
+      <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <TagFilter board={board} />
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <DeletedTasks board={board} />
+          <HistoryControls board={board} />
+        </div>
+      </div>
 
       <MeetingSchedulePicker board={board} />
 

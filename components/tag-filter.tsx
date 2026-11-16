@@ -4,7 +4,7 @@ export function TagFilter({ board }: { board: TaskBoardController }) {
   return (
     <>
       <div
-        className="mt-6 flex flex-wrap items-center gap-1.5"
+        className="flex flex-wrap items-center gap-1.5"
         role="group"
         aria-label="Filter tasks by tag"
       >

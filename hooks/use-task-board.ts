@@ -11,14 +11,20 @@ import { syncRecurringGmTasks } from "@/lib/recurring-gm-tasks";
 import { syncRecurringEboardAgenda } from "@/lib/recurring-eboard-tasks";
 import { resolveMeetingSchedule } from "@/lib/meeting";
 import * as meetingActions from "@/lib/meeting-actions";
+import { restoreDeletedBatch } from "@/lib/deleted-tasks";
 import {
+  canRedo,
+  canUndo,
+  commitState,
   getServerSnapshot,
   getSnapshot,
   hydrateFromServer,
+  redo,
   refreshFromStorage,
   setState,
   STORAGE_KEY,
   subscribe,
+  undo,
 } from "@/lib/storage";
 import { matchesTagFilter, TAGS, type TagId } from "@/lib/tags";
 import * as dependencyActions from "@/lib/dependency-actions";
@@ -85,6 +91,40 @@ export function useTaskBoard() {
     return () => window.clearInterval(timer);
   }, [storageReady]);
 
+  // Leave native text editing shortcuts alone; the board shortcuts only apply
+  // when focus is outside a form control.
+  useEffect(() => {
+    function handleHistoryShortcut(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (
+        target?.isContentEditable ||
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+      ) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === "z") {
+        const action = event.shiftKey ? redo : undo;
+        if (event.shiftKey ? !canRedo() : !canUndo()) return;
+        event.preventDefault();
+        action();
+      } else if (key === "y") {
+        if (!canRedo()) return;
+        event.preventDefault();
+        redo();
+      }
+    }
+
+    window.addEventListener("keydown", handleHistoryShortcut);
+    return () => window.removeEventListener("keydown", handleHistoryShortcut);
+  }, []);
+
   const [subtaskParentId, setSubtaskParentId] = useState<string | null>(null);
   const [subtaskText, setSubtaskText] = useState("");
   const [subtaskCategoryId, setSubtaskCategoryId] = useState("");
@@ -147,7 +187,7 @@ export function useTaskBoard() {
     }
     if (!result.state) return;
 
-    setState(result.state);
+    commitState(result.state);
     setAddError(null);
     form.reset();
   }
@@ -161,7 +201,7 @@ export function useTaskBoard() {
     );
     if (!next) return;
 
-    setState(next);
+    commitState(next);
     setSubtaskParentId(null);
     setSubtaskText("");
   }
@@ -177,7 +217,7 @@ export function useTaskBoard() {
       taskId,
       rawLead,
     );
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function addDependency(taskId: string) {
@@ -193,14 +233,14 @@ export function useTaskBoard() {
     }
     if (!result.state) return;
 
-    setState(result.state);
+    commitState(result.state);
     setDepAfterId("");
     setDepBeforeId("");
     setDepError(null);
   }
 
   function removeDependency(before: string, after: string) {
-    setState(dependencyActions.removeDependency(state, before, after));
+    commitState(dependencyActions.removeDependency(state, before, after));
     setDepError(null);
   }
 
@@ -212,7 +252,7 @@ export function useTaskBoard() {
     }
     if (!result.state) return;
 
-    setState(result.state);
+    commitState(result.state);
     setTitleDraft(rawTitle.trim());
     setTitleError(null);
   }
@@ -228,16 +268,16 @@ export function useTaskBoard() {
       taskId,
       endCategoryId,
     );
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function toggleTag(categoryId: string, taskId: string, tagId: TagId) {
-    setState(taskActions.toggleTaskTag(state, categoryId, taskId, tagId));
+    commitState(taskActions.toggleTaskTag(state, categoryId, taskId, tagId));
   }
 
   function togglePollInterest(pollId: string) {
     const next = socialPollActions.togglePollInterest(state, pollId);
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function cancelEditingNotes() {
@@ -306,20 +346,20 @@ export function useTaskBoard() {
   }
 
   function saveNotes(categoryId: string, taskId: string) {
-    setState(taskActions.updateTaskNotes(state, categoryId, taskId, notesDraft));
+    commitState(taskActions.updateTaskNotes(state, categoryId, taskId, notesDraft));
     setNotesTaskId(null);
     setNotesDraft("");
   }
 
   function toggleTask(categoryId: string, taskId: string) {
-    setState(taskActions.toggleTaskDone(state, categoryId, taskId));
+    commitState(taskActions.toggleTaskDone(state, categoryId, taskId));
   }
 
   function removeTask(taskId: string) {
     const result = taskActions.deleteTask(state, taskId);
     if (!result) return;
 
-    setState(result.state);
+    commitState(result.state);
     if (subtaskParentId === taskId) setSubtaskParentId(null);
     if (notesTaskId && result.removedIds.has(notesTaskId)) setNotesTaskId(null);
     if (
@@ -328,6 +368,11 @@ export function useTaskBoard() {
     ) {
       setExpandedRowKey(null);
     }
+  }
+
+  function restoreDeleted(batchId: string) {
+    const next = restoreDeletedBatch(state, batchId);
+    if (next) commitState(next);
   }
 
   function moveTask(
@@ -341,32 +386,32 @@ export function useTaskBoard() {
       taskId,
       toCategoryId,
     );
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function assignGmIdea(ideaId: string, gmEventId: string) {
     const next = taskActions.assignGmIdea(state, ideaId, gmEventId);
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function returnGmIdea(taskId: string) {
     const next = taskActions.returnGmIdea(state, taskId);
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function setGmIdeaSuggestedMonth(ideaId: string, month: string) {
     const next = taskActions.setGmIdeaSuggestedMonth(state, ideaId, month);
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function setTodoDueDate(categoryId: string, taskId: string, dueDate: string) {
     const next = taskActions.setTodoDueDate(state, categoryId, taskId, dueDate);
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   function setMeetingSchedule(weekday: number, time: string) {
     const next = meetingActions.setMeetingSchedule(state, weekday, time);
-    if (next) setState(next);
+    if (next) commitState(next);
   }
 
   const tasks = allTasks(state);
@@ -376,6 +421,12 @@ export function useTaskBoard() {
   return {
     state,
     storageReady,
+    canUndo: canUndo(),
+    canRedo: canRedo(),
+    undo,
+    redo,
+    deletedTasks: state.deletedTasks ?? [],
+    restoreDeleted,
     tags: TAGS,
     taskOptions,
     gmEventOptions,

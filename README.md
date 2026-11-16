@@ -21,7 +21,10 @@ and ordering rules. A filter bar narrows the timeline to tasks with selected
 tags. New tasks can optionally be placed between two existing tasks and can be
 given an end section. Events and tasks are saved to the server in
 `data/board.json`; the browser keeps a localStorage cache so the board can open
-before the server responds.
+before the server responds. Deleting an event, to-do, or GM task moves it to a
+Recently deleted list in the toolbar, newest first. Restore puts the item back
+in its section together with its subtasks and ordering rules. The list keeps
+the 25 most recent deletions and is saved with the rest of the board.
 
 Default tasks and their starter ordering rules live in `lib/defaults.ts`; keep
 each entry's `id` stable since it is used to remember moves, deletions, and

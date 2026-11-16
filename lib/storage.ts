@@ -6,6 +6,14 @@ import {
 } from "./defaults";
 import { fetchBoard, saveBoard } from "./board-api";
 import { isMonthKey, isISODate } from "./calendar";
+import { normalizeDeletedBatches } from "./deleted-tasks";
+import {
+  emptyHistory,
+  recordHistory,
+  redoHistory,
+  undoHistory,
+  type History,
+} from "./history";
 import { isDependency, pruneDependencies } from "./dependencies";
 import { isMeetingSchedule } from "./meeting";
 import { sanitizeSubtaskPlacement } from "./placement";
@@ -53,6 +61,11 @@ export function normalizeStorage(raw: string): AppState {
   const meetingSchedule = isMeetingSchedule(storedMeetingSchedule)
     ? storedMeetingSchedule
     : undefined;
+  const deletedTasks = normalizeDeletedBatches(
+    parsed && typeof parsed === "object" && "deletedTasks" in parsed
+      ? (parsed as AppState).deletedTasks
+      : undefined,
+  );
 
   const cleaned: TasksByCategory = {};
   for (const [categoryId, list] of Object.entries(tasks)) {
@@ -160,6 +173,7 @@ export function normalizeStorage(raw: string): AppState {
       removedDefaults,
       dependencies: pruneDependencies(dependencies, cleaned),
       ...(meetingSchedule ? { meetingSchedule } : {}),
+      ...(deletedTasks.length > 0 ? { deletedTasks } : {}),
     }),
   );
 }
@@ -190,6 +204,7 @@ function writeLocalCache(next: AppState): void {
 }
 
 let cache: AppState | null = null;
+let history: History<AppState> = emptyHistory();
 let serverReady = false;
 let hydrationPromise: Promise<void> | null = null;
 let pendingSave: AppState | null = null;
@@ -221,9 +236,47 @@ function applyState(next: AppState): void {
   listeners.forEach((listener) => listener());
 }
 
+// Apply a non-user update, such as materializing recurring tasks. It does not
+// create an undo step.
 export function setState(next: AppState): void {
   applyState(next);
   if (serverReady) queueServerSave(next);
+}
+
+// Every board edit goes through here so it can be undone with the same
+// snapshot that was on screen before the edit.
+export function commitState(next: AppState): void {
+  const current = getSnapshot();
+  if (current === next) return;
+  history = recordHistory(history, snapshot(current));
+  setState(next);
+}
+
+export function canUndo(): boolean {
+  return history.past.length > 0;
+}
+
+export function canRedo(): boolean {
+  return history.future.length > 0;
+}
+
+export function undo(): void {
+  const result = undoHistory(history, snapshot(getSnapshot()));
+  if (!result) return;
+  history = result.history;
+  setState(result.value);
+}
+
+export function redo(): void {
+  const result = redoHistory(history, snapshot(getSnapshot()));
+  if (!result) return;
+  history = result.history;
+  setState(result.value);
+}
+
+function snapshot(state: AppState): AppState {
+  if (typeof structuredClone === "function") return structuredClone(state);
+  return JSON.parse(JSON.stringify(state)) as AppState;
 }
 
 // localStorage remains a cache so the board still opens while the request is
@@ -239,6 +292,7 @@ async function hydrate(): Promise<void> {
   try {
     const remote = await fetchBoard();
     if (remote) {
+      history = emptyHistory();
       applyState(remote.state);
       return;
     }
@@ -246,6 +300,7 @@ async function hydrate(): Promise<void> {
     // No server copy yet: migrate whatever this browser already had, or seed a
     // fresh server board from the defaults.
     const initial = localRaw ? normalizeLocal(localRaw) : (cache ?? DEFAULT_STATE);
+    history = emptyHistory();
     applyState(initial);
     queueServerSave(initial);
   } catch (error) {
@@ -306,8 +361,10 @@ function clearRetry(): void {
   retryTimer = null;
 }
 
-// Keep multiple tabs in sync.
+// Keep multiple tabs in sync. A change from another tab invalidates the local
+// undo path because this tab no longer has the previous shared state.
 export function refreshFromStorage(): void {
+  history = emptyHistory();
   cache = readStorage();
   listeners.forEach((listener) => listener());
 }
