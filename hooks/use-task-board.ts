@@ -14,6 +14,7 @@ import * as meetingActions from "@/lib/meeting-actions";
 import {
   getServerSnapshot,
   getSnapshot,
+  hydrateFromServer,
   refreshFromStorage,
   setState,
   STORAGE_KEY,
@@ -48,11 +49,26 @@ function useTaskStore() {
 
 export function useTaskBoard() {
   const state = useTaskStore();
+  const [storageReady, setStorageReady] = useState(false);
+
+  // Load the server copy before rendering or running any recurring sync, so a
+  // brand-new tab cannot overwrite the saved board with seeded defaults.
+  useEffect(() => {
+    let active = true;
+    void hydrateFromServer().finally(() => {
+      if (active) setStorageReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Materialize the current week's GM prep tasks and e-board agenda. Re-check
   // periodically so a tab left open across a week boundary picks up the next
   // meeting.
   useEffect(() => {
+    if (!storageReady) return;
+
     function sync() {
       const categoryId = currentWeekCategoryId();
       const current = getSnapshot();
@@ -67,7 +83,7 @@ export function useTaskBoard() {
     sync();
     const timer = window.setInterval(sync, 60_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [storageReady]);
 
   const [subtaskParentId, setSubtaskParentId] = useState<string | null>(null);
   const [subtaskText, setSubtaskText] = useState("");
@@ -359,6 +375,7 @@ export function useTaskBoard() {
 
   return {
     state,
+    storageReady,
     tags: TAGS,
     taskOptions,
     gmEventOptions,

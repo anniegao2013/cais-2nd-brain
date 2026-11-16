@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCurrentWeek } from "@/hooks/use-current-week";
-import { useTaskBoard } from "@/hooks/use-task-board";
+import { useTaskBoard, type TaskBoardController } from "@/hooks/use-task-board";
 import {
   SPRING_WEEK_COUNT,
   WEEK_COUNT,
@@ -38,8 +38,24 @@ function tabSummary(tabId: TimelineTabId): string {
   return `${prefix} 1–${weekCount} run ${semesterRangeLabel(tabId)}.`;
 }
 
+function BoardLoading() {
+  return (
+    <div className="mx-auto w-full max-w-5xl px-6 py-10">
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        Loading the saved board…
+      </p>
+    </div>
+  );
+}
+
 export default function TaskBoard() {
   const board = useTaskBoard();
+
+  if (!board.storageReady) return <BoardLoading />;
+  return <TaskBoardContent board={board} />;
+}
+
+function TaskBoardContent({ board }: { board: TaskBoardController }) {
   const currentWeekCategoryId = useCurrentWeek();
   const [selectedTabId, setSelectedTabId] = useState<TimelineTabId | null>(
     null,

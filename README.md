@@ -19,7 +19,9 @@ click and render as nested bullet points. Expanding shows the description on
 its own; a separate Edit control changes the title, description, tags, span,
 and ordering rules. A filter bar narrows the timeline to tasks with selected
 tags. New tasks can optionally be placed between two existing tasks and can be
-given an end section. Everything is stored in the browser.
+given an end section. Events and tasks are saved to the server in
+`data/board.json`; the browser keeps a localStorage cache so the board can open
+before the server responds.
 
 Default tasks and their starter ordering rules live in `lib/defaults.ts`; keep
 each entry's `id` stable since it is used to remember moves, deletions, and
@@ -81,10 +83,11 @@ it writes `lib/usc-calendar.generated.json`, which the app imports.
 
 | Path | Responsibility |
 | --- | --- |
-| `app/` | Next.js routes and layout |
+| `app/` | Next.js routes, layout, and the board persistence API |
 | `components/` | Presentational UI, from the board down to a single task row |
 | `hooks/use-task-board.ts` | Client-side UI state and task actions |
 | `lib/` | Domain logic: categories, calendar dates, tags, defaults, ordering, placement, notes, storage, scraping, and task operations |
+| `lib/server/` | Server-only board persistence |
 | `scripts/` | Runnable maintenance scripts, including the USC calendar scraper |
 | `tests/` | Vitest suites for the pure logic in `lib/` |
 
@@ -95,8 +98,22 @@ dates; `usc-calendar.ts` parses the published academic calendar and
 `dependencies.ts` and
 `dependency-actions.ts` handle ordering; `placement.ts` and `span-actions.ts`
 handle moves and spans; `tasks.ts` derives occurrences; `notes.ts` parses
-descriptions; `task-actions.ts` mutates tasks; and `storage.ts` persists
-everything in localStorage.
+descriptions; `task-actions.ts` mutates tasks; and `storage.ts` hydrates and
+saves the board.
+
+## Persistence
+
+The server writes the board to `data/board.json` through `GET` and `PUT` on
+`/api/board`. Existing browser data is uploaded automatically the first time the
+server has no saved board, so switching from localStorage does not lose events
+or tasks. After that the server copy wins, and localStorage is only a cache for
+the initial paint and temporary offline use.
+
+Set `BOARD_DATA_FILE` to use a different path. The default path is inside the
+project, so use a persistent volume when running the app somewhere with an
+ephemeral filesystem. This single-file store fits a small single-user board; a
+hosted deployment with multiple users should replace `lib/server/board-store.ts`
+with a database.
 
 ## Getting started
 

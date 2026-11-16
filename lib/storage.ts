@@ -4,6 +4,7 @@ import {
   DEFAULT_EVENTS,
   DEFAULT_STATE,
 } from "./defaults";
+import { fetchBoard, saveBoard } from "./board-api";
 import { isMonthKey, isISODate } from "./calendar";
 import { isDependency, pruneDependencies } from "./dependencies";
 import { isMeetingSchedule } from "./meeting";
@@ -172,7 +173,28 @@ function readStorage(): AppState {
   }
 }
 
+function readLocalRaw(): string | null {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalCache(next: AppState): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Storage may be unavailable; keep the in-memory copy.
+  }
+}
+
 let cache: AppState | null = null;
+let serverReady = false;
+let hydrationPromise: Promise<void> | null = null;
+let pendingSave: AppState | null = null;
+let saving = false;
+let retryTimer: number | null = null;
 const listeners = new Set<() => void>();
 
 export function getSnapshot(): AppState {
@@ -180,6 +202,8 @@ export function getSnapshot(): AppState {
   return cache;
 }
 
+// The page is statically rendered, so show the seeded board until the client
+// has a chance to load the server copy.
 export function getServerSnapshot(): AppState {
   return DEFAULT_STATE;
 }
@@ -191,14 +215,95 @@ export function subscribe(listener: () => void): () => void {
   };
 }
 
-export function setState(next: AppState): void {
+function applyState(next: AppState): void {
   cache = next;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // Storage may be unavailable; keep the in-memory copy.
-  }
+  if (typeof window !== "undefined") writeLocalCache(next);
   listeners.forEach((listener) => listener());
+}
+
+export function setState(next: AppState): void {
+  applyState(next);
+  if (serverReady) queueServerSave(next);
+}
+
+// localStorage remains a cache so the board still opens while the request is
+// in flight. The server file is the source of truth once hydration finishes.
+export function hydrateFromServer(): Promise<void> {
+  hydrationPromise ??= hydrate();
+  return hydrationPromise;
+}
+
+async function hydrate(): Promise<void> {
+  const localRaw = readLocalRaw();
+
+  try {
+    const remote = await fetchBoard();
+    if (remote) {
+      applyState(remote.state);
+      return;
+    }
+
+    // No server copy yet: migrate whatever this browser already had, or seed a
+    // fresh server board from the defaults.
+    const initial = localRaw ? normalizeLocal(localRaw) : (cache ?? DEFAULT_STATE);
+    applyState(initial);
+    queueServerSave(initial);
+  } catch (error) {
+    // Offline or an unavailable API should never block the local board.
+    console.warn("Could not load the server board; using local data.", error);
+  } finally {
+    serverReady = true;
+  }
+}
+
+function normalizeLocal(raw: string): AppState {
+  try {
+    return normalizeStorage(raw);
+  } catch {
+    return cache ?? DEFAULT_STATE;
+  }
+}
+
+function queueServerSave(next: AppState): void {
+  pendingSave = next;
+  void flushServerSaves();
+}
+
+async function flushServerSaves(): Promise<void> {
+  if (saving) return;
+  saving = true;
+
+  try {
+    while (pendingSave) {
+      const next = pendingSave;
+      pendingSave = null;
+      try {
+        await saveBoard(next);
+      } catch (error) {
+        pendingSave = pendingSave ?? next;
+        console.warn("Could not save the board to the server; retrying.", error);
+        scheduleRetry();
+        return;
+      }
+    }
+    clearRetry();
+  } finally {
+    saving = false;
+  }
+}
+
+function scheduleRetry(): void {
+  if (typeof window === "undefined" || retryTimer !== null) return;
+  retryTimer = window.setTimeout(() => {
+    retryTimer = null;
+    void flushServerSaves();
+  }, 3_000);
+}
+
+function clearRetry(): void {
+  if (retryTimer === null || typeof window === "undefined") return;
+  window.clearTimeout(retryTimer);
+  retryTimer = null;
 }
 
 // Keep multiple tabs in sync.
