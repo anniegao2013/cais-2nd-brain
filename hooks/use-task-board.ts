@@ -16,6 +16,7 @@ import {
   canRedo,
   canUndo,
   commitState,
+  defaultBoardState,
   getServerSnapshot,
   getSnapshot,
   hydrateFromServer,
@@ -32,7 +33,19 @@ import * as spanActions from "@/lib/span-actions";
 import * as socialPollActions from "@/lib/social-polls";
 import * as taskActions from "@/lib/task-actions";
 import { allTasks, findTask } from "@/lib/tasks";
-import type { Task } from "@/lib/types";
+import type { AppState, Task } from "@/lib/types";
+
+// Materialize the recurring prep work for the week the viewer is in. Reset
+// uses the same helper so a fresh board still has the current week's tasks.
+function withCurrentWeekTasks(state: AppState): AppState {
+  const categoryId = currentWeekCategoryId();
+  const withGmTasks = syncRecurringGmTasks(state, categoryId);
+  return (
+    syncRecurringEboardAgenda(withGmTasks ?? state, categoryId) ??
+    withGmTasks ??
+    state
+  );
+}
 
 function useTaskStore() {
   const state = useSyncExternalStore(
@@ -76,14 +89,9 @@ export function useTaskBoard() {
     if (!storageReady) return;
 
     function sync() {
-      const categoryId = currentWeekCategoryId();
       const current = getSnapshot();
-      const withGmTasks = syncRecurringGmTasks(current, categoryId);
-      const next = syncRecurringEboardAgenda(
-        withGmTasks ?? current,
-        categoryId,
-      );
-      if (next) setState(next);
+      const next = withCurrentWeekTasks(current);
+      if (next !== current) setState(next);
     }
 
     sync();
@@ -375,6 +383,26 @@ export function useTaskBoard() {
     if (next) commitState(next);
   }
 
+  // Factory reset for the next year: drop user content, restore the seeded
+  // board, and clear any UI drafts that pointed at the old tasks. Committing it
+  // keeps the reset undoable until the page reloads.
+  function resetBoard() {
+    commitState(withCurrentWeekTasks(defaultBoardState()));
+    setSubtaskParentId(null);
+    setSubtaskText("");
+    setNotesTaskId(null);
+    setNotesDraft("");
+    setExpandedRowKey(null);
+    setPanelMode("view");
+    setTitleDraft("");
+    setTitleError(null);
+    setDepAfterId("");
+    setDepBeforeId("");
+    setDepError(null);
+    setAddError(null);
+    setActiveTags([]);
+  }
+
   function moveTask(
     fromCategoryId: string,
     taskId: string,
@@ -427,6 +455,7 @@ export function useTaskBoard() {
     redo,
     deletedTasks: state.deletedTasks ?? [],
     restoreDeleted,
+    resetBoard,
     tags: TAGS,
     taskOptions,
     gmEventOptions,

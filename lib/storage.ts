@@ -223,6 +223,12 @@ export function getServerSnapshot(): AppState {
   return DEFAULT_STATE;
 }
 
+// Reset needs a fresh copy so edits cannot mutate the shared seed, and so the
+// reset is a new object that the history stack can record.
+export function defaultBoardState(): AppState {
+  return snapshot(DEFAULT_STATE);
+}
+
 export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => {

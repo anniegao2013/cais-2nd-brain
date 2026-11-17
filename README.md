@@ -24,7 +24,11 @@ given an end section. Events and tasks are saved to the server in
 before the server responds. Deleting an event, to-do, or GM task moves it to a
 Recently deleted list in the toolbar, newest first. Restore puts the item back
 in its section together with its subtasks and ordering rules. The list keeps
-the 25 most recent deletions and is saved with the rest of the board.
+the 25 most recent deletions and is saved with the rest of the board. Reset
+board clears this year's events, tasks, descriptions, GM ideas, to-dos, and
+deleted items, then restores the default board and the Wednesday 7:00 PM
+meeting time; the reset can be undone until the page reloads. Use it when
+starting a new academic year.
 
 Default tasks and their starter ordering rules live in `lib/defaults.ts`; keep
 each entry's `id` stable since it is used to remember moves, deletions, and

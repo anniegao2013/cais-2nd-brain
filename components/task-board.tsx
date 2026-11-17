@@ -20,6 +20,7 @@ import { MeetingSchedulePicker } from "./meeting-schedule-picker";
 import { EboardAgenda } from "./eboard-agenda";
 import { HistoryControls } from "./history-controls";
 import { DeletedTasks } from "./deleted-tasks";
+import { ResetBoard } from "./reset-board";
 
 function tabSummary(tabId: TimelineTabId): string {
   if (tabId === "before") {
@@ -179,6 +180,7 @@ function TaskBoardContent({ board }: { board: TaskBoardController }) {
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <DeletedTasks board={board} />
           <HistoryControls board={board} />
+          <ResetBoard board={board} />
         </div>
       </div>
 

@@ -4,9 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { sectionLabel } from "@/lib/categories";
 import type { DeletedBatch } from "@/lib/types";
-
-const buttonClass =
-  "inline-flex h-7 items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-zinc-200 disabled:hover:text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100 dark:disabled:hover:border-zinc-700 dark:disabled:hover:text-zinc-400";
+import { toolbarButtonClass } from "./toolbar-button";
 
 function rootEntry(batch: DeletedBatch) {
   return batch.tasks.find((entry) => !entry.task.parentId) ?? batch.tasks[0];
@@ -68,7 +66,7 @@ export function DeletedTasks({ board }: { board: TaskBoardController }) {
         aria-expanded={open}
         aria-controls="deleted-tasks-panel"
         title="See and restore recently deleted events"
-        className={buttonClass}
+        className={toolbarButtonClass}
       >
         Recently deleted
         {batches.length > 0 && (
