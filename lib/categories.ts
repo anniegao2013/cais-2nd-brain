@@ -10,6 +10,15 @@ export type TimelineTabId =
   | "todos"
   | "eboard-agenda";
 
+export type ScheduleTabId = "before" | "fall" | "spring";
+
+export type BoardSectionId =
+  | "home"
+  | "schedule"
+  | "gm-ideas"
+  | "todos"
+  | "eboard-agenda";
+
 export type TimelineTab = {
   id: TimelineTabId;
   label: string;
@@ -98,6 +107,34 @@ export const TIMELINE_TABS: TimelineTab[] = [
     categoryIds: [],
   },
 ];
+
+// The top-level navigation. Schedule owns the three term tabs below; the other
+// three sections are single lists.
+export type BoardSection = {
+  id: BoardSectionId;
+  label: string;
+};
+
+export const BOARD_SECTIONS: BoardSection[] = [
+  { id: "home", label: "Home" },
+  { id: "schedule", label: "Schedule" },
+  { id: "gm-ideas", label: "GM ideas" },
+  { id: "todos", label: "To-do" },
+  { id: "eboard-agenda", label: "E-board meeting agenda" },
+];
+
+export const SCHEDULE_TABS: (TimelineTab & { id: ScheduleTabId })[] =
+  TIMELINE_TABS.filter(
+    (tab): tab is TimelineTab & { id: ScheduleTabId } => isScheduleTab(tab.id),
+  );
+
+export function isScheduleTab(tabId: TimelineTabId): tabId is ScheduleTabId {
+  return tabId === "before" || tabId === "fall" || tabId === "spring";
+}
+
+export function boardSectionForTab(tabId: TimelineTabId): BoardSectionId {
+  return isScheduleTab(tabId) ? "schedule" : tabId;
+}
 
 const CATEGORY_BY_ID = new Map(
   [...CATEGORIES, GM_IDEAS_CATEGORY, TODO_CATEGORY].map((category) => [

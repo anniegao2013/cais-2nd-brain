@@ -50,7 +50,7 @@ export function TaskSection({
       id={`${category.id}-section`}
       aria-labelledby={`${category.id}-heading`}
       aria-current={isCurrentWeek ? "date" : undefined}
-      className="scroll-mt-6"
+      className="scroll-mt-24"
     >
       <div className="flex items-baseline justify-between gap-4">
         <div className="flex flex-wrap items-baseline gap-x-2">
