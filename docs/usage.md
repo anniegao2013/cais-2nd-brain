@@ -40,6 +40,18 @@ When the current week is late in a term, the earlier weeks are hidden behind a
 USC holidays and recesses appear as reference rows with their own styling. They
 are tied to real dates and cannot be checked off.
 
+### GM blocks
+
+Each week's GM is grouped into a labelled **GM** block. The GM row comes first,
+and everything scheduled for that meeting — agenda items, prep tasks, and
+assigned ideas — sits below it in the same block. The block counts its open
+items, so it is clear at a glance which rows belong to the GM rather than to the
+week in general.
+
+A prep task can be scheduled in an earlier week than its GM. It then appears in
+that earlier week as a **GM prep** block labelled with the GM's date and meeting
+time, so you can still tell which meeting the work is for.
+
 ### Moving and spanning tasks
 
 - Use the section dropdown on a task row to move it to another week.
@@ -65,7 +77,7 @@ Each row has these controls:
 - **+** — add a subtask. Subtasks are scheduled in the same week or an earlier
   one, and their lead time says how many weeks before the parent they should be
   done. GM events use **Add task** instead, to attach agenda items and follow-up
-  work; those items keep their order under the GM.
+  work; those items appear in that GM's block for the week.
 - **Section dropdown** — move the task to another section.
 - **×** — delete the task and its subtasks. They go to **Recently deleted**.
 
@@ -94,7 +106,8 @@ to a week.
 
 - **Suggested month** groups GM weeks in that month first when you assign the
   idea.
-- **Assign to GM…** turns the idea into a task under that meeting.
+- **Assign to GM…** turns the idea into a task under that meeting, inside the
+  GM's block for the week.
 - **↩ Return to ideas** sends an assigned item back to the backlog.
 
 Tagging a social event automatically creates three follow-up subtasks at their

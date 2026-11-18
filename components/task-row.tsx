@@ -24,6 +24,7 @@ export function TaskRow({
   categoryId,
   isStart,
   isOverdue = false,
+  inGmGroup = false,
 }: {
   board: TaskBoardController;
   task: Task;
@@ -31,6 +32,9 @@ export function TaskRow({
   categoryId: string;
   isStart: boolean;
   isOverdue?: boolean;
+  // Rows inside a GM group already sit under their GM, so the parent link is
+  // replaced with just the lead-time note.
+  inGmGroup?: boolean;
 }) {
   const parentLocation = task.parentId
     ? findTask(board.state, task.parentId)
@@ -480,7 +484,7 @@ export function TaskRow({
         </div>
       )}
 
-      {parent && (
+      {parent && !inGmGroup && (
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
           <span>{parentIsGm ? "Task for" : "Subtask of"}</span>
           <button
@@ -498,6 +502,13 @@ export function TaskRow({
                 } before`
               : "can be scheduled the same week or earlier"}
           </span>
+        </div>
+      )}
+
+      {parent && inGmGroup && task.leadWeeks && (
+        <div className="mt-1 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
+          At least {task.leadWeeks} week{task.leadWeeks === 1 ? "" : "s"} before
+          this GM
         </div>
       )}
 

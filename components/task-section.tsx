@@ -1,8 +1,13 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { weekRangeLabel } from "@/lib/calendar";
 import { isTodoCategory, tabForCategoryId } from "@/lib/categories";
-import { overdueWeekOccurrences, taskOccurrences } from "@/lib/tasks";
+import {
+  groupOccurrencesByGm,
+  overdueWeekOccurrences,
+  taskOccurrences,
+} from "@/lib/tasks";
 import { AddTaskForm } from "./add-task-form";
+import { GmGroup } from "./gm-group";
 import { TaskRow } from "./task-row";
 import { TodoGroups } from "./todo-groups";
 
@@ -28,6 +33,8 @@ export function TaskSection({
   const occurrences = taskOccurrences(board.state, category.id).filter(
     ({ task }) => board.matchesFilter(task) && !overdueIds.has(task.id),
   );
+  // Keep each GM's rows together in the week, with the GM row first.
+  const groups = groupOccurrencesByGm(board.state, occurrences);
   const overdueOccurrences = isCurrentWeek
     ? overdue.filter(({ task }) => board.matchesFilter(task))
     : [];
@@ -123,16 +130,27 @@ export function TaskSection({
       ) : (
         occurrences.length > 0 && (
           <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-            {occurrences.map(({ task, startCategoryId, isStart }) => (
-              <TaskRow
-                key={`${task.id}:${category.id}`}
-                board={board}
-                task={task}
-                startCategoryId={startCategoryId}
-                categoryId={category.id}
-                isStart={isStart}
-              />
-            ))}
+            {groups.map((group) =>
+              group.gmId ? (
+                <GmGroup
+                  key={`gm:${group.gmId}`}
+                  board={board}
+                  group={group}
+                  categoryId={category.id}
+                />
+              ) : (
+                group.occurrences.map(({ task, startCategoryId, isStart }) => (
+                  <TaskRow
+                    key={`${task.id}:${category.id}`}
+                    board={board}
+                    task={task}
+                    startCategoryId={startCategoryId}
+                    categoryId={category.id}
+                    isStart={isStart}
+                  />
+                ))
+              ),
+            )}
           </ul>
         )
       )}

@@ -86,7 +86,7 @@ tests, and a build before shipping a change.
 | `lib/defaults.ts` | Seeded events, starter dependencies, `DEFAULT_STATE` |
 | `lib/dependencies.ts`, `dependency-actions.ts` | Ordering rules and pruning |
 | `lib/placement.ts`, `span-actions.ts` | Subtask placement, moves, and spans |
-| `lib/tasks.ts` | Task lookup, occurrences across spanned weeks, overdue derivation |
+| `lib/tasks.ts` | Task lookup, occurrences across spanned weeks, GM grouping, overdue derivation |
 | `lib/task-actions.ts` | Pure task mutations (add, rename, move, toggle, notes, delete) |
 | `lib/notes.ts` | Parses descriptions into nested bullets |
 | `lib/social-polls.ts` | Social-event follow-up subtasks |
@@ -111,6 +111,7 @@ tests, and a build before shipping a change.
 | `components/board-home.tsx` | Landing page and section shortcuts |
 | `components/board-nav.tsx` | Top navigation and Schedule term tabs |
 | `components/task-section.tsx` | One week or list section |
+| `components/gm-group.tsx` | A GM plus its agenda items, prep tasks, and assigned ideas |
 | `components/task-row.tsx` | Task controls, GM idea actions, suggestions |
 | `components/task-edit-panel.tsx` | Title, tags, span, lead time, ordering |
 | `components/task-description.tsx` | Inline description viewer/editor |
@@ -231,6 +232,9 @@ Some board content is generated or refreshed automatically:
   materializing routine work does not create an undo step.
 - **The agenda** (`lib/eboard-agenda.ts`) is computed from the current state; it
   is not saved.
+- **GM blocks** are assembled for display by `groupOccurrencesByGm()` in
+  `lib/tasks.ts`, so a GM and its tasks render together without changing the
+  stored task order. A prep task in an earlier week forms a GM prep block there.
 - **To-do groups** (`lib/todo-groups.ts`) are computed from due dates at render
   time.
 
