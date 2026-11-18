@@ -1,11 +1,14 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { useTodayISO } from "@/hooks/use-today";
 import { isoDateLabel } from "@/lib/calendar";
+import { taskLinkHash } from "@/lib/board-location";
+import { copyText } from "@/lib/clipboard";
 import { TODO_CATEGORY_ID, sectionLabel } from "@/lib/categories";
 import {
   agendaEvents,
   agendaTodos,
   nextMeetingWeek,
+  type MeetingWeek,
 } from "@/lib/eboard-agenda";
 import { meetingFollowsGm, meetingTimeLabel } from "@/lib/meeting";
 import type { Task } from "@/lib/types";
@@ -16,6 +19,61 @@ function MetaBadge({ children }: { children: React.ReactNode }) {
       {children}
     </span>
   );
+}
+
+function todoMeta(task: Task, todayISO: string): string {
+  if (!task.dueDate) return "No due date";
+  return task.dueDate < todayISO
+    ? `Overdue · ${isoDateLabel(task.dueDate)}`
+    : `Due ${isoDateLabel(task.dueDate)}`;
+}
+
+// The Markdown copy is deliberately plain so it pastes cleanly into a doc,
+// message, or issue tracker without the board's styling.
+function agendaMarkdown({
+  meeting,
+  timeLabel,
+  coveredLabels,
+  followsGm,
+  events,
+  todos,
+  todayISO,
+}: {
+  meeting: MeetingWeek;
+  timeLabel: string;
+  coveredLabels: string[];
+  followsGm: boolean;
+  events: ReturnType<typeof agendaEvents>;
+  todos: Task[];
+  todayISO: string;
+}): string {
+  const lines = [
+    "# E-board meeting agenda",
+    "",
+    `${isoDateLabel(meeting.dateISO)} · ${timeLabel}`,
+    "",
+    `Covers: ${coveredLabels.join(", ")}.`,
+  ];
+  if (followsGm) {
+    lines.push("Meetings after Wednesday's GM start with the following week.");
+  }
+  lines.push("", `## Events (${events.length})`, "");
+  if (events.length === 0) {
+    lines.push("_No open events in the weeks this meeting covers._");
+  } else {
+    for (const event of events) {
+      lines.push(`- [ ] ${event.task.text} — ${sectionLabel(event.categoryId)}`);
+    }
+  }
+  lines.push("", `## To-dos (${todos.length})`, "");
+  if (todos.length === 0) {
+    lines.push("_No open to-dos due by this meeting._");
+  } else {
+    for (const task of todos) {
+      lines.push(`- [ ] ${task.text} — ${todoMeta(task, todayISO)}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function AgendaRow({
@@ -57,6 +115,13 @@ function AgendaRow({
           {task.suggested && <MetaBadge>Suggestion</MetaBadge>}
           {task.recurring && <MetaBadge>Weekly</MetaBadge>}
           {extra}
+          <a
+            href={taskLinkHash(categoryId, task.id)}
+            aria-label={`Open "${task.text}" on the board`}
+            className="font-medium text-zinc-600 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline print:hidden dark:text-zinc-300 dark:hover:text-zinc-50"
+          >
+            Open
+          </a>
         </div>
       </div>
     </li>
@@ -141,11 +206,45 @@ export function EboardAgenda({ board }: { board: TaskBoardController }) {
             {isoDateLabel(meeting.dateISO)} · {timeLabel}
           </p>
         </div>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {coveredLabels.length === 1
-            ? coveredLabels[0]
-            : `${coveredLabels.length} weeks covered`}
-        </p>
+        <div className="flex flex-wrap items-center gap-1.5 print:hidden">
+          <p className="mr-1 text-xs text-zinc-500 dark:text-zinc-400">
+            {coveredLabels.length === 1
+              ? coveredLabels[0]
+              : `${coveredLabels.length} weeks covered`}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              const markdown = agendaMarkdown({
+                meeting,
+                timeLabel,
+                coveredLabels,
+                followsGm,
+                events,
+                todos,
+                todayISO,
+              });
+              void copyText(markdown).then((copied) =>
+                board.showToast(
+                  copied
+                    ? "Agenda copied as Markdown"
+                    : "Could not copy the agenda",
+                ),
+              );
+            }}
+            className="rounded-md border border-zinc-200 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-50"
+          >
+            Copy as Markdown
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            aria-label="Print this agenda"
+            className="rounded-md border border-zinc-200 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-50"
+          >
+            Print
+          </button>
+        </div>
       </div>
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Covers {coveredLabels.join(", ")}.{" "}
@@ -182,13 +281,7 @@ export function EboardAgenda({ board }: { board: TaskBoardController }) {
             board={board}
             task={task}
             categoryId={TODO_CATEGORY_ID}
-            meta={
-              task.dueDate
-                ? task.dueDate < todayISO
-                  ? `Overdue · ${isoDateLabel(task.dueDate)}`
-                  : `Due ${isoDateLabel(task.dueDate)}`
-                : "No due date"
-            }
+            meta={todoMeta(task, todayISO)}
           />
         ))}
       </AgendaSection>

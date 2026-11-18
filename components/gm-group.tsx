@@ -1,4 +1,5 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
+import { taskLinkHash } from "@/lib/board-location";
 import { gmDateLabel } from "@/lib/calendar";
 import { isGmEvent } from "@/lib/gm-events";
 import { meetingTimeLabel } from "@/lib/meeting";
@@ -41,6 +42,13 @@ export function GmGroup({
         <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
           {group.gmOccurrence ? "tasks & ideas" : "prep for this GM"}
         </span>
+        <a
+          href={taskLinkHash(group.gmCategoryId ?? categoryId, group.gmId)}
+          aria-label="Open this GM on the board"
+          className="text-[11px] font-medium text-indigo-700 underline-offset-2 transition-colors hover:underline print:hidden dark:text-indigo-300"
+        >
+          Open GM
+        </a>
         <span className="ml-auto text-[11px] tabular-nums text-indigo-700/70 dark:text-indigo-300/70">
           {group.gmOccurrence
             ? childOccurrences.length === 0

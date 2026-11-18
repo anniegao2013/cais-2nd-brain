@@ -1,10 +1,10 @@
 import {
-  CATEGORIES,
   categoryIndex,
   isGmIdeasCategory,
   isTodoCategory,
   sectionLabel,
 } from "@/lib/categories";
+import { taskAnchorId } from "@/lib/board-location";
 import { isGmEvent } from "@/lib/gm-events";
 import { meetingTimeLabel } from "@/lib/meeting";
 import { baseMoveBounds, moveBounds } from "@/lib/placement";
@@ -16,6 +16,7 @@ import { isInterestPoll, socialPollId } from "@/lib/social-polls";
 import { SubtaskForm } from "./subtask-form";
 import { TaskDescription } from "./task-description";
 import { TaskEditPanel } from "./task-edit-panel";
+import { TaskRowMenu } from "./task-row-menu";
 
 export function TaskRow({
   board,
@@ -127,7 +128,7 @@ export function TaskRow({
 
   return (
     <li
-      id={`task-${task.id}-${categoryId}`}
+      id={taskAnchorId(categoryId, task.id)}
       className={`py-2.5 ${isSubtask ? "pl-6" : ""} ${suggestionRow} ${holidayRow} ${overdueRow} ${gmIdeaRow}`}
     >
       <div className="group flex flex-wrap items-center gap-2">
@@ -193,7 +194,7 @@ export function TaskRow({
             task.text
           }"`}
           title={viewing ? "Hide description" : "Show description"}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 sm:size-6 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
           {viewing ? "▾" : "▸"}
         </button>
@@ -213,20 +214,6 @@ export function TaskRow({
             className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-600 transition-colors hover:border-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:focus:border-zinc-600"
           />
         )}
-        <button
-          type="button"
-          onClick={() => board.togglePanel(task.id, categoryId, "edit")}
-          aria-expanded={editing}
-          aria-controls={editorId}
-          aria-label={`${editing ? "Close editor for" : "Edit"} "${task.text}"`}
-          className={
-            editing
-              ? "h-7 shrink-0 rounded-md border border-zinc-900 bg-zinc-900 px-2 text-[11px] font-medium text-white transition-colors hover:bg-zinc-700 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-              : "h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100"
-          }
-        >
-          {editing ? "Done" : "Edit"}
-        </button>
         {isGmIdea && (
           <>
             <select
@@ -284,64 +271,20 @@ export function TaskRow({
             </select>
           </>
         )}
-        {isStart && !isSubtask && !isGmIdea && !isTodo && (
-          <button
-            type="button"
-            onClick={() => {
-              if (formOpen) {
-                board.setSubtaskParentId(null);
-                return;
-              }
-              board.setSubtaskParentId(task.id);
-              board.setSubtaskText("");
-              board.setSubtaskCategoryId(startCategoryId);
-              board.cancelEditingNotes();
-            }}
-            aria-label={
-              gmEvent
-                ? `Add a task to "${task.text}"`
-                : `Add a subtask to "${task.text}"`
-            }
-            aria-expanded={formOpen}
-            className={
-              gmEvent
-                ? "h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100"
-                : "flex size-6 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
-            }
-          >
-            {gmEvent ? "Add task" : "+"}
-          </button>
-        )}
-        {isStart && !isGmIdea && !isTodo && (
-          <select
-            value={startCategoryId}
-            onChange={(event) =>
-              board.moveTask(startCategoryId, task.id, event.target.value)
-            }
-            aria-label={`Move "${task.text}" to another section`}
-            className="h-7 shrink-0 rounded-md border border-zinc-200 bg-transparent px-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 dark:focus:border-zinc-600"
-          >
-            {CATEGORIES.map((option, optionIndex) => (
-              <option
-                key={option.id}
-                value={option.id}
-                disabled={optionIndex < bounds.min || optionIndex > bounds.max}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-        )}
-        {isStart && (
-          <button
-            type="button"
-            onClick={() => board.removeTask(task.id)}
-            aria-label={`Delete "${task.text}"`}
-            className="text-sm text-zinc-400 opacity-0 transition-opacity hover:text-zinc-900 focus:opacity-100 group-hover:opacity-100 dark:text-zinc-500 dark:hover:text-zinc-100"
-          >
-            ×
-          </button>
-        )}
+        <TaskRowMenu
+          board={board}
+          task={task}
+          categoryId={categoryId}
+          startCategoryId={startCategoryId}
+          isStart={isStart}
+          bounds={bounds}
+          canAddSubtask={
+            isStart && !isSubtask && !isGmIdea && !isTodo && !task.isHoliday
+          }
+          addSubtaskLabel={gmEvent ? "Add task" : "Add subtask"}
+          canMove={isStart && !isGmIdea && !isTodo}
+          canDuplicate={!gmEvent && !task.isHoliday}
+        />
       </div>
 
       {((task.tags?.length ?? 0) > 0 ||

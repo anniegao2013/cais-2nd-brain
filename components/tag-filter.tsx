@@ -41,6 +41,24 @@ export function TagFilter({ board }: { board: TaskBoardController }) {
             </button>
           );
         })}
+        {board.completedTaskCount > 0 && (
+          <button
+            type="button"
+            onClick={board.toggleHideCompleted}
+            aria-pressed={board.hideCompleted}
+            aria-label={
+              board.hideCompleted
+                ? "Show completed tasks"
+                : "Hide completed tasks"
+            }
+            title="Only affects this session"
+            className="ml-1 rounded-full border border-dashed border-zinc-300 px-2.5 py-1 text-[11px] font-medium text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+          >
+            {board.hideCompleted
+              ? `Show completed (${board.completedTaskCount})`
+              : `Hide completed (${board.completedTaskCount})`}
+          </button>
+        )}
       </div>
       {board.activeTags.length > 0 && (
         <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">

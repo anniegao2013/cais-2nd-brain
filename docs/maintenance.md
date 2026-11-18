@@ -66,6 +66,7 @@ tests, and a build before shipping a change.
 | `components/` | UI: home, navigation, board, sections, rows, forms, toolbar |
 | `hooks/use-task-board.ts` | Client controller: state, validation, actions, shortcuts, reset |
 | `hooks/use-current-week.ts` | Client-only current week id, refreshed every 60 seconds |
+| `hooks/use-save-status.ts` | Client subscription to the shared-save status |
 | `lib/` | Pure domain logic: categories, calendar, tags, defaults, ordering, storage |
 | `lib/server/` | Server-only persistence (the JSON board file) |
 | `scripts/` | Maintenance scripts, currently the USC calendar scraper |
@@ -87,7 +88,7 @@ tests, and a build before shipping a change.
 | `lib/dependencies.ts`, `dependency-actions.ts` | Ordering rules and pruning |
 | `lib/placement.ts`, `span-actions.ts` | Subtask placement, moves, and spans |
 | `lib/tasks.ts` | Task lookup, occurrences across spanned weeks, GM grouping, overdue derivation |
-| `lib/task-actions.ts` | Pure task mutations (add, rename, move, toggle, notes, delete) |
+| `lib/task-actions.ts` | Pure task mutations (add, rename, move, duplicate, toggle, notes, delete, clear completed) |
 | `lib/notes.ts` | Parses descriptions into nested bullets |
 | `lib/social-polls.ts` | Social-event follow-up subtasks |
 | `lib/gm-events.ts` | GM event ids, GM weeks, assignment options |
@@ -96,29 +97,39 @@ tests, and a build before shipping a change.
 | `lib/recurring-eboard-tasks.ts` | Current-week e-board agenda to-do |
 | `lib/eboard-agenda.ts` | Draft agenda coverage and items |
 | `lib/todo-groups.ts` | Due-date buckets for the To-do section |
+| `lib/search.ts` | Title, description, tag, and section search with ranked results |
+| `lib/board-location.ts` | Parses and writes the section, term, week, and task URL hash |
+| `lib/clipboard.ts` | Clipboard copy with a selection-based fallback |
+| `lib/home-summary.ts` | Live counts and next meeting for the Home cards |
 | `lib/deleted-tasks.ts` | Recently deleted batches and restore |
 | `lib/history.ts` | Bounded undo/redo stacks |
-| `lib/storage.ts` | Hydration, normalization, caching, history commits, server saves |
-| `lib/server/board-store.ts` | Atomic file reads and writes |
-| `lib/board-api.ts` | Browser `fetch` wrappers for `/api/board` |
+| `lib/storage.ts` | Hydration, normalization, caching, labeled history commits, server saves, remote polling, conflict resolution |
+| `lib/server/board-store.ts` | Atomic file reads and writes with version preconditions |
+| `lib/board-api.ts` | Browser `fetch` wrappers, version header, and `BoardConflictError` |
 
 ### UI map
 
 | Component | Responsibility |
 | --- | --- |
 | `app/page.tsx` | Page header and main shell |
-| `components/task-board.tsx` | Section/term state, sticky nav, scroll behavior, board layout |
-| `components/board-home.tsx` | Landing page and section shortcuts |
-| `components/board-nav.tsx` | Top navigation and Schedule term tabs |
-| `components/task-section.tsx` | One week or list section |
+| `components/task-board.tsx` | Section/term state, URL hash sync, deep-link scrolling, sticky nav, scroll behavior |
+| `components/board-home.tsx` | Landing page with live counts and section shortcuts |
+| `components/board-nav.tsx` | Top navigation, search trigger, This week jump, Schedule term tabs |
+| `components/search-palette.tsx` | `⌘K` search dialog grouped by section |
+| `components/task-section.tsx` | One week or list section, week progress, completed filtering |
 | `components/gm-group.tsx` | A GM plus its agenda items, prep tasks, and assigned ideas |
-| `components/task-row.tsx` | Task controls, GM idea actions, suggestions |
+| `components/task-row.tsx` | Task controls, due date, GM idea actions, suggestions |
+| `components/task-row-menu.tsx` | Row `⋯` menu: edit, subtask, move, duplicate, copy link, delete |
 | `components/task-edit-panel.tsx` | Title, tags, span, lead time, ordering |
 | `components/task-description.tsx` | Inline description viewer/editor |
 | `components/add-task-form.tsx`, `subtask-form.tsx` | Creation forms |
-| `components/tag-filter.tsx` | Tag filter bar |
+| `components/filtered-add-task.tsx` | Add bar shown while a tag filter is active |
+| `components/tag-filter.tsx` | Tag filter bar and session Hide completed toggle |
+| `components/save-status.tsx` | Saving / saved / offline / changed-elsewhere chip in the toolbar |
+| `components/board-sync-banner.tsx` | Conflict decision and "newer changes loaded" note |
 | `components/meeting-schedule-picker.tsx` | Weekly meeting day/time |
-| `components/eboard-agenda.tsx` | Draft agenda view |
+| `components/eboard-agenda.tsx` | Draft agenda view, Markdown copy, and print |
+| `components/board-toast.tsx` | Transient confirmation with Undo after deletes/resets |
 | `components/history-controls.tsx`, `deleted-tasks.tsx`, `reset-board.tsx` | Toolbar recovery tools |
 
 ## Data model
@@ -179,7 +190,10 @@ and returns the saved board. Both responses use `Cache-Control: no-store`.
 - Writes to a temporary file and renames it, so a crash cannot leave a partial
   board.
 - Serializes writes inside the process so rapid saves cannot interleave.
-- Returns `updatedAt` from the file's modification time.
+- Returns `updatedAt` from the file's modification time and a `version` token
+  that hashes the exact bytes on disk.
+- Checks an optional `expectedVersion` inside the write queue before writing. A
+  mismatch returns the current board instead of overwriting it.
 
 Client hydration (`lib/storage.ts`):
 
@@ -189,10 +203,41 @@ Client hydration (`lib/storage.ts`):
 3. If the server has no board, the browser uploads its local copy, or seeds a
    fresh board from `DEFAULT_STATE`.
 4. Saves are queued and flushed in order; a failed save retries after 3 seconds.
+   `lib/storage.ts` publishes a save status (`idle`, `saving`, `saved`,
+   `offline`, or `conflict`) that `subscribeSaveStatus` / `useSaveStatus` expose
+   to the toolbar chip and the sync banner. The timestamp is the server file's
+   time on load, then the browser's clock after each successful write.
 5. A `storage` event from another tab refreshes the local cache and clears undo
    history.
 
 localStorage is only a cache. The key is `second-brain.tasks.v1`.
+
+### Concurrent edits
+
+Two people (or two tabs) can edit the same board, so a save is never blind:
+
+- Every `GET /api/board` and successful `PUT` returns a `version` token. The
+  client keeps the token of the copy it last loaded or wrote and sends it as
+  `If-Match` on the next save.
+- `PUT /api/board` compares that token with the file inside the write queue. On a
+  mismatch it answers `409` with the current board. `lib/board-api.ts` turns that
+  into `BoardConflictError`, and `lib/storage.ts` stops saving and publishes
+  `conflict` instead of retrying over the newer copy.
+- While a conflict is open, local edits accumulate in this browser only.
+  `loadLatestBoard()` adopts the server copy and clears undo history;
+  `keepLocalBoard()` sets `forceNextSave` so the next write skips the
+  precondition deliberately.
+- `startRemoteSync()` polls every 15 seconds and on focus/visibility. It applies
+  a newer copy automatically only when nothing is in flight and focus is not in
+  a form field; otherwise it waits for the save precondition to raise the
+  banner. That is why both halves exist: polling alone could pull the board out
+  from under an edit, and the precondition alone would only surface a collision
+  at the next save.
+
+`components/board-sync-banner.tsx` renders the conflict decision and the
+transient "newer changes loaded" note. Keep the HTTP shapes in `lib/board-api.ts`
+and the file rules in `lib/server/board-store.ts`; `lib/storage.ts` should stay
+the only place that decides which copy wins in the browser.
 
 ### Backup and restore
 
@@ -240,7 +285,24 @@ Some board content is generated or refreshed automatically:
 
 Recent deletions (`lib/deleted-tasks.ts`) keep the 25 newest batches. Undo
 history (`lib/history.ts`) keeps 50 snapshots in memory per session and is not
-persisted.
+persisted. Each entry pairs the snapshot with the label of the action that
+replaced it, so the toolbar and toast can say what Undo will reverse; add a
+label wherever `commitState` is called.
+
+## URL hashes and deep links
+
+`lib/board-location.ts` is the only place that parses or writes board hashes.
+The shapes are:
+
+- `#home`
+- `#schedule/<term>` and `#schedule/<term>/<week>`
+- `#schedule/<term>/<week>/task-<id>`
+- `#gm-ideas/task-<id>` and `#todos/task-<id>`
+
+`taskLinkHash(categoryId, taskId)` builds the link, and `taskAnchorId` matches
+the `id` on the rendered row. `task-board.tsx` scrolls and highlights the target
+after the section renders. Keep task ids out of any lowercasing; only section
+and category names are normalized.
 
 ## Starting a new academic year
 
@@ -284,9 +346,10 @@ the safe way to revisit last year.
 ## Testing
 
 Vitest suites live in `tests/` and cover ordering, spans, subtask placement,
-validation, storage migration, deletions and restore, notes, tags, seeded
+validation, storage migration, deletions and restore, duplicates, clearing
+completed to-dos, notes, tags, search, URL hashes and task links, seeded
 defaults, recurring tasks, the agenda, the calendar parser, and the file-backed
-board store.
+board store, including version tokens and save preconditions.
 
 ```bash
 npm test

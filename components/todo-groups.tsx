@@ -59,9 +59,39 @@ export function TodoGroups({
 
   if (groups.length === 0) return null;
 
+  const completed = groups.find((group) => group.id === "completed");
+  const visibleGroups = board.hideCompleted
+    ? groups.filter((group) => group.id !== "completed")
+    : groups;
+
   return (
     <div className="mt-4 flex flex-col gap-5">
-      {groups.map((group) => {
+      {completed && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-1.5 text-[11px] text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+          <span className="tabular-nums">
+            {completed.tasks.length} completed
+            {board.hideCompleted ? " · hidden" : ""}
+          </span>
+          <span className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={board.toggleHideCompleted}
+              className="font-medium text-zinc-600 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-300 dark:hover:text-zinc-50"
+            >
+              {board.hideCompleted ? "Show" : "Hide"}
+            </button>
+            <span aria-hidden>·</span>
+            <button
+              type="button"
+              onClick={() => board.clearCompleted(categoryId)}
+              className="font-medium text-zinc-600 underline-offset-2 transition-colors hover:text-zinc-900 hover:underline dark:text-zinc-300 dark:hover:text-zinc-50"
+            >
+              Clear completed
+            </button>
+          </span>
+        </div>
+      )}
+      {visibleGroups.map((group) => {
         const styles = BUCKET_STYLES[group.id];
         return (
           <div key={group.id}>

@@ -1,6 +1,8 @@
 "use client";
 
 import type { BoardSectionId } from "@/lib/categories";
+import { boardLocationHash } from "@/lib/board-location";
+import type { HomeSummary } from "@/lib/home-summary";
 
 const QUICK_LINKS: {
   id: Exclude<BoardSectionId, "home">;
@@ -35,16 +37,61 @@ const QUICK_LINKS: {
 
 const BASICS = [
   "Add tasks at the end of any section. A task can span several weeks and will show up in each one.",
-  "Click ▸ or a task title to read its description. Edit changes the title, description, tags, span, and ordering rules.",
-  "Use + to add a subtask, where you can also set a lead time. GM events use Add task instead.",
+  "Search the whole board with ⌘K (Ctrl+K) to jump straight to a task, description, tag, or section.",
+  "Click ▸ or a task title to read its description. The ⋯ menu holds Edit, Add subtask, Move, Duplicate, Copy link, and Delete.",
   "Tag tasks to filter the board. Rows marked Suggestion are just social-event ideas: keep, rename, move, or delete them.",
   "The meeting card sets the weekly e-board day and time. The current GM week also gets two prep tasks, and meeting weeks add the agenda to-do.",
   "Undo, Recently deleted, and Reset board are on the board toolbar. Undo lasts for the session; Reset starts a new year.",
 ];
 
+function linkMeta(
+  id: Exclude<BoardSectionId, "home">,
+  summary: HomeSummary | null,
+): { text: string; tone: "normal" | "danger" } | null {
+  if (!summary) return null;
+
+  if (id === "schedule") {
+    return summary.currentWeekLabel
+      ? { text: `This week: ${summary.currentWeekLabel}`, tone: "normal" }
+      : { text: "On break — no classes this week", tone: "normal" };
+  }
+
+  if (id === "gm-ideas") {
+    return {
+      text:
+        summary.gmIdeas === 0
+          ? "No ideas in the backlog yet"
+          : `${summary.gmIdeas} idea${summary.gmIdeas === 1 ? "" : "s"} in the backlog`,
+      tone: "normal",
+    };
+  }
+
+  if (id === "todos") {
+    if (summary.overdueTodos > 0) {
+      return {
+        text: `${summary.overdueTodos} overdue · ${summary.openTodos} open`,
+        tone: "danger",
+      };
+    }
+    return {
+      text:
+        summary.openTodos === 0
+          ? "Nothing open"
+          : `${summary.openTodos} open`,
+      tone: "normal",
+    };
+  }
+
+  return summary.nextMeeting
+    ? { text: `Next meeting: ${summary.nextMeeting}`, tone: "normal" }
+    : { text: "No upcoming meeting", tone: "normal" };
+}
+
 export function BoardHome({
+  summary,
   onSelectSection,
 }: {
+  summary: HomeSummary | null;
   onSelectSection: (section: BoardSectionId) => void;
 }) {
   return (
@@ -64,21 +111,50 @@ export function BoardHome({
         Jump in
       </h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {QUICK_LINKS.map((link) => (
-          <button
-            key={link.id}
-            type="button"
-            onClick={() => onSelectSection(link.id)}
-            className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
-          >
-            <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              {link.label}
-            </span>
-            <span className="mt-1 block text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-              {link.description}
-            </span>
-          </button>
-        ))}
+        {QUICK_LINKS.map((link) => {
+          const meta = linkMeta(link.id, summary);
+          return (
+            <a
+              key={link.id}
+              href={
+                link.id === "schedule"
+                  ? "#schedule"
+                  : boardLocationHash(link.id, "fall")
+              }
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                onSelectSection(link.id);
+              }}
+              className="block rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
+            >
+              <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {link.label}
+              </span>
+              <span className="mt-1 block text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                {link.description}
+              </span>
+              {meta && (
+                <span
+                  className={`mt-2 block text-[11px] font-medium tabular-nums ${
+                    meta.tone === "danger"
+                      ? "text-red-700 dark:text-red-300"
+                      : "text-zinc-600 dark:text-zinc-300"
+                  }`}
+                >
+                  {meta.text}
+                </span>
+              )}
+            </a>
+          );
+        })}
       </div>
 
       <h2 className="mt-10 text-sm font-semibold text-zinc-900 dark:text-zinc-100">

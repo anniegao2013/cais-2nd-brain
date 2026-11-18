@@ -24,3 +24,42 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* A deep-linked row flashes briefly so the destination is obvious after the
+   board scrolls to it. */
+.task-highlight {
+  animation: task-highlight 2.6s ease-out;
+}
+
+@keyframes task-highlight {
+  0%,
+  35% {
+    background-color: rgb(254 240 138 / 0.85);
+    box-shadow: 0 0 0 2px rgb(250 204 21 / 0.55);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  @keyframes task-highlight {
+    0%,
+    35% {
+      background-color: rgb(250 204 21 / 0.18);
+      box-shadow: 0 0 0 2px rgb(250 204 21 / 0.35);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 2px transparent;
+    }
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+}

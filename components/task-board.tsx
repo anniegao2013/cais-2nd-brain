@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useCurrentWeek } from "@/hooks/use-current-week";
 import { useTaskBoard, type TaskBoardController } from "@/hooks/use-task-board";
+import { useTodayISO } from "@/hooks/use-today";
+import { boardLocationHash, parseBoardHash, taskAnchorId } from "@/lib/board-location";
+import { boardHomeSummary } from "@/lib/home-summary";
 import {
   SPRING_WEEK_COUNT,
   WEEK_COUNT,
@@ -13,6 +16,7 @@ import {
   boardSectionForTab,
   categoriesForTab,
   isScheduleTab,
+  sectionLabel,
   tabForCategoryId,
   type BoardSectionId,
   type ScheduleTabId,
@@ -20,6 +24,8 @@ import {
 } from "@/lib/categories";
 import { BoardHome } from "./board-home";
 import { BoardNav } from "./board-nav";
+import { FilteredAddTask } from "./filtered-add-task";
+import { SaveStatus } from "./save-status";
 import { TagFilter } from "./tag-filter";
 import { TaskSection } from "./task-section";
 import { MeetingSchedulePicker } from "./meeting-schedule-picker";
@@ -27,6 +33,9 @@ import { EboardAgenda } from "./eboard-agenda";
 import { HistoryControls } from "./history-controls";
 import { DeletedTasks } from "./deleted-tasks";
 import { ResetBoard } from "./reset-board";
+import { BoardSyncBanner } from "./board-sync-banner";
+import { SearchPalette } from "./search-palette";
+import { BoardToastView } from "./board-toast";
 
 function tabSummary(tabId: TimelineTabId): string {
   if (tabId === "before") {
@@ -66,18 +75,57 @@ export default function TaskBoard() {
 
 function TaskBoardContent({ board }: { board: TaskBoardController }) {
   const currentWeekCategoryId = useCurrentWeek();
-  const [selectedTabId, setSelectedTabId] = useState<TimelineTabId | null>(
-    null,
+  const todayISO = useTodayISO();
+  const [initialLocation] = useState(() =>
+    parseBoardHash(
+      typeof window === "undefined" ? "" : window.location.hash,
+    ),
   );
-  // Home is the landing view. It stands apart from the board tabs, so it keeps
-  // its own flag instead of pretending to be a timeline tab.
-  const [showHome, setShowHome] = useState(true);
+  const [selectedTabId, setSelectedTabId] = useState<TimelineTabId | null>(
+    initialLocation.section === "home"
+      ? null
+      : initialLocation.section === "schedule"
+        ? initialLocation.tab
+        : initialLocation.section,
+  );
+  // Home is the landing view unless the URL names another section. It stands
+  // apart from the board tabs, so it keeps its own flag instead of pretending
+  // to be a timeline tab.
+  const [showHome, setShowHome] = useState(initialLocation.section === "home");
   // Remember the term the viewer last looked at so hopping over to GM ideas or
   // To-do and back to Schedule returns to the same semester.
   const [lastScheduleTabId, setLastScheduleTabId] =
-    useState<ScheduleTabId | null>(null);
-  const [showEarlierSections, setShowEarlierSections] = useState(false);
-  const hasAutoScrolled = useRef(false);
+    useState<ScheduleTabId | null>(
+      initialLocation.section === "schedule" ? initialLocation.tab : null,
+    );
+  const [showEarlierSections, setShowEarlierSections] = useState(() => {
+    const initialTab = initialLocation.tab;
+    if (!initialLocation.categoryId || initialTab === null) return false;
+    const ids = categoriesForTab(initialTab);
+    const targetIndex = ids.findIndex(
+      (category) => category.id === initialLocation.categoryId,
+    );
+    const currentIndex = currentWeekCategoryId
+      ? ids.findIndex((category) => category.id === currentWeekCategoryId)
+      : -1;
+    return targetIndex >= 0 && currentIndex >= 0 && targetIndex < currentIndex;
+  });
+  const [jumpToken, setJumpToken] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [taskTarget, setTaskTarget] = useState<{
+    categoryId: string;
+    taskId: string;
+    token: number;
+  } | null>(() =>
+    initialLocation.categoryId && initialLocation.taskId
+      ? {
+          categoryId: initialLocation.categoryId,
+          taskId: initialLocation.taskId,
+          token: 0,
+        }
+      : null,
+  );
+  const hasAutoScrolled = useRef(initialLocation.taskId !== null);
   const scrollIntent = useRef<"nav" | "content" | "boundary" | null>(null);
 
   const currentTabId =
@@ -109,6 +157,119 @@ function TaskBoardContent({ board }: { board: TaskBoardController }) {
     showEarlierSections || hiddenSectionCount === 0
       ? tabCategories
       : tabCategories.slice(currentWeekIndex);
+  const homeSummary = todayISO
+    ? boardHomeSummary(board.state, todayISO, currentWeekCategoryId)
+    : null;
+
+  function writeLocation(section: BoardSectionId, tab: ScheduleTabId) {
+    const hash = boardLocationHash(section, tab);
+    if (window.location.hash === hash) return;
+    window.history.pushState(null, "", hash);
+  }
+
+  // Keep the URL in step even on first load, so an empty or stale hash becomes
+  // a durable Home or section link without adding a history entry. A hash that
+  // names a week or task is left alone so the deep link survives rendering.
+  useEffect(() => {
+    const raw = window.location.hash;
+    if (raw) {
+      const current = parseBoardHash(raw);
+      const sectionMatches = current.section === activeSection;
+      const tabMatches =
+        activeSection !== "schedule" ||
+        current.tab === null ||
+        current.tab === activeScheduleTabId;
+      const hasTarget = Boolean(
+        current.categoryId ||
+          current.taskId ||
+          (activeSection === "schedule" && current.tab),
+      );
+      const canonical = boardLocationHash(
+        activeSection,
+        activeScheduleTabId,
+      );
+      if (sectionMatches && tabMatches && (hasTarget || raw === canonical)) {
+        return;
+      }
+    }
+    window.history.replaceState(
+      null,
+      "",
+      boardLocationHash(activeSection, activeScheduleTabId),
+    );
+  }, [activeSection, activeScheduleTabId]);
+
+  // Back, Forward, and a hand-edited hash all restore the same view.
+  useEffect(() => {
+    function applyLocation() {
+      const location = parseBoardHash(window.location.hash);
+      setShowEarlierSections(
+        Boolean(location.categoryId) && location.section === "schedule",
+      );
+      scrollIntent.current = location.taskId ? null : "content";
+      setTaskTarget(
+        location.categoryId && location.taskId
+          ? {
+              categoryId: location.categoryId,
+              taskId: location.taskId,
+              token: Date.now(),
+            }
+          : null,
+      );
+
+      if (location.section === "home") {
+        setShowHome(true);
+        return;
+      }
+
+      setShowHome(false);
+
+      if (location.section === "schedule") {
+        const inferredTab = location.categoryId
+          ? tabForCategoryId(location.categoryId)
+          : null;
+        const tab =
+          location.tab ??
+          (inferredTab !== null && isScheduleTab(inferredTab)
+            ? inferredTab
+            : null) ??
+          lastScheduleTabId ??
+          currentScheduleTabId;
+        setLastScheduleTabId(tab);
+        setSelectedTabId(tab);
+        return;
+      }
+
+      setSelectedTabId(location.section);
+    }
+
+    window.addEventListener("popstate", applyLocation);
+    window.addEventListener("hashchange", applyLocation);
+    return () => {
+      window.removeEventListener("popstate", applyLocation);
+      window.removeEventListener("hashchange", applyLocation);
+    };
+  }, [currentScheduleTabId, lastScheduleTabId]);
+
+  // Scroll a deep-linked task into view once its section is rendered, then
+  // fade a highlight out so the destination is obvious.
+  useEffect(() => {
+    if (!taskTarget) return;
+    const element = document.getElementById(
+      taskAnchorId(taskTarget.categoryId, taskTarget.taskId),
+    );
+    if (!element) return;
+
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    element.classList.add("task-highlight");
+    const timer = window.setTimeout(() => {
+      element.classList.remove("task-highlight");
+    }, 2600);
+    return () => {
+      window.clearTimeout(timer);
+      element.classList.remove("task-highlight");
+    };
+  }, [taskTarget]);
 
   function boundaryElement(): HTMLElement | null {
     return (
@@ -148,11 +309,34 @@ function TaskBoardContent({ board }: { board: TaskBoardController }) {
     boundaryElement()?.scrollIntoView({ block: "start" });
     // boundaryElement reads currentWeekCategoryId from this render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId, activeSection, showEarlierSections, currentWeekCategoryId]);
+  }, [
+    activeTabId,
+    activeSection,
+    showEarlierSections,
+    currentWeekCategoryId,
+    jumpToken,
+  ]);
+
+  useEffect(() => {
+    function handleSearchShortcut(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+      setSearchOpen((open) => !open);
+    }
+
+    window.addEventListener("keydown", handleSearchShortcut);
+    return () => window.removeEventListener("keydown", handleSearchShortcut);
+  }, []);
 
   function selectTab(tabId: TimelineTabId, forceContent = false) {
     setShowEarlierSections(false);
+    setTaskTarget(null);
     if (isScheduleTab(tabId)) setLastScheduleTabId(tabId);
+    writeLocation(
+      boardSectionForTab(tabId),
+      isScheduleTab(tabId) ? tabId : activeScheduleTabId,
+    );
 
     if (tabId === activeTabId && !forceContent) {
       scrollIntent.current = "nav";
@@ -167,6 +351,8 @@ function TaskBoardContent({ board }: { board: TaskBoardController }) {
   function selectSection(section: BoardSectionId) {
     if (section === "home") {
       setShowHome(true);
+      setTaskTarget(null);
+      writeLocation("home", activeScheduleTabId);
       scrollIntent.current = "content";
       return;
     }
@@ -198,16 +384,46 @@ function TaskBoardContent({ board }: { board: TaskBoardController }) {
     setShowEarlierSections((shown) => !shown);
   }
 
+  function goToCurrentWeek() {
+    if (currentWeekCategoryId === null) return;
+    const tab = tabForCategoryId(currentWeekCategoryId);
+
+    setShowHome(false);
+    setShowEarlierSections(false);
+    setTaskTarget(null);
+    if (isScheduleTab(tab)) setLastScheduleTabId(tab);
+    setSelectedTabId(tab);
+    writeLocation("schedule", isScheduleTab(tab) ? tab : activeScheduleTabId);
+
+    hasAutoScrolled.current = true;
+    scrollIntent.current = "boundary";
+    setJumpToken((token) => token + 1);
+  }
+
   return (
     <>
       <BoardNav
         activeSection={activeSection}
         activeScheduleTab={activeScheduleTabId}
+        currentWeekLabel={
+          currentWeekCategoryId ? sectionLabel(currentWeekCategoryId) : null
+        }
+        currentWeekCategoryId={currentWeekCategoryId}
         onSelectSection={selectSection}
         onSelectScheduleTab={selectTab}
+        onGoToCurrentWeek={goToCurrentWeek}
+        onOpenSearch={() => setSearchOpen(true)}
       />
+      {searchOpen && (
+        <SearchPalette
+          board={board}
+          open
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
+      <BoardToastView toast={board.toast} onDismiss={board.dismissToast} />
       {activeSection === "home" ? (
-        <BoardHome onSelectSection={selectSection} />
+        <BoardHome summary={homeSummary} onSelectSection={selectSection} />
       ) : (
         <div className="mx-auto w-full max-w-2xl px-6 py-10">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
@@ -217,18 +433,30 @@ function TaskBoardContent({ board }: { board: TaskBoardController }) {
             {tabSummary(activeTabId)}
           </p>
 
-          <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
+          <BoardSyncBanner />
+
+          <div className="mt-6 flex flex-wrap items-start justify-between gap-3 print:hidden">
             <div className="min-w-0 flex-1">
               <TagFilter board={board} />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <SaveStatus />
               <DeletedTasks board={board} />
               <HistoryControls board={board} />
               <ResetBoard board={board} />
             </div>
           </div>
 
-          <MeetingSchedulePicker board={board} />
+          <div className="print:hidden">
+            <FilteredAddTask
+              key={activeTabId}
+              board={board}
+              activeTabId={activeTabId}
+              currentWeekCategoryId={currentWeekCategoryId}
+            />
+
+            <MeetingSchedulePicker board={board} />
+          </div>
 
           <div
             id="board-panel"

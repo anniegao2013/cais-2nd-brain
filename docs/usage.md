@@ -11,8 +11,18 @@ Board changes save automatically; there is no button to save the whole board.
 - The navigation bar is pinned to the top of the screen, so you can switch
   areas at any time: **Home**, **Schedule**, **GM ideas**, **To-do**, and
   **E-board meeting agenda**.
+- The address bar follows the section (`#schedule/fall`, `#todos`, and so on),
+  so browser Back and Forward work and a link opens the same view.
+- A link can point at one task, for example
+  `#schedule/fall/week-13/task-<id>` or `#todos/task-<id>`. Opening it reveals
+  the right section, scrolls the row into view, and briefly highlights it.
+- **Search** (the magnifier in the navigation bar, or `⌘K` / `Ctrl+K`) looks
+  through task titles, descriptions, tags, GM ideas, to-dos, and section names.
+  Use the arrow keys and Enter to jump to a result.
+- **This week** in the navigation bar jumps to the week containing today, from
+  any section.
 - **Home** is the landing page. Its four cards jump straight to the working
-  areas.
+  areas and show live counts, including overdue to-dos and the next meeting.
 - **Schedule** has a second row of term buttons: **Before the year**,
   **Fall semester**, and **Spring semester**. The board remembers the term you
   last viewed for the session, so leaving Schedule and coming back lands where
@@ -54,7 +64,7 @@ time, so you can still tell which meeting the work is for.
 
 ### Moving and spanning tasks
 
-- Use the section dropdown on a task row to move it to another week.
+- Use the **⋯** menu on a task row to move it to another week.
 - To make a task span several weeks, choose an end section in **spanning
   through** when adding it, or change **Span** in the task's Edit panel. A
   spanning task is listed under every week it covers, with the range shown
@@ -72,14 +82,20 @@ Each row has these controls:
 - **Checkbox** — mark the task done. Holiday rows show a calendar marker and
   cannot be checked off.
 - **▸ / task title** — open or close the description.
-- **Edit** — change the title, tags, span, lead time (for subtasks), and
-  ordering rules.
-- **+** — add a subtask. Subtasks are scheduled in the same week or an earlier
-  one, and their lead time says how many weeks before the parent they should be
-  done. GM events use **Add task** instead, to attach agenda items and follow-up
-  work; those items appear in that GM's block for the week.
-- **Section dropdown** — move the task to another section.
-- **×** — delete the task and its subtasks. They go to **Recently deleted**.
+- **⋯** — open the row menu:
+  - **Edit** changes the title, tags, span, lead time (for subtasks), and
+    ordering rules.
+  - **Add subtask** attaches work to a GM or task. Subtasks are scheduled in the
+    same week or an earlier one, and their lead time says how many weeks before
+    the parent they should be done. GM events use this to attach agenda items
+    and follow-up work; those items appear in that GM's block for the week.
+  - **Move to** sends the task to another section.
+  - **Duplicate** inserts a copy right after the original, with the title
+    suffixed “(copy)”. The copy starts unchecked and keeps tags, description,
+    span, and due date.
+  - **Copy link** copies a URL that opens the board at this task.
+  - **Delete** removes the task and its subtasks. They go to **Recently
+    deleted**.
 
 Descriptions open inline and render as nested bullet points. Write one bullet
 per line; indent with two spaces or a tab to nest a level. Bullet markers
@@ -94,6 +110,14 @@ Tasks can carry one or more tags: **Projects**, **Curriculum**,
 The filter bar above the board shows only tasks with the selected tags. Selecting
 several tags matches tasks with any of them. With no tags selected, everything
 shows.
+
+While a filter is active, an **Add while filtered** bar stays at the top of the
+section. Choose a section, type the task, and it is tagged with the active
+filters automatically so it appears immediately.
+
+When anything is completed, **Hide completed** appears beside the tag filters.
+It hides completed rows for the rest of the session without deleting them. Week
+headers always show `done/total` alongside the open count.
 
 Rows marked **Suggestion** are ideas for social events, not confirmed plans.
 Keep, rename, move, or delete them as you like.
@@ -132,6 +156,10 @@ are optional; items are grouped by urgency:
 To-dos use the same checkboxes, descriptions, tags, and editing controls, but
 they do not use spans, ordering rules, or subtasks.
 
+The completed summary above the list has **Clear completed**, which moves every
+checked to-do into one **Recently deleted** batch so it can be restored. The
+summary also hides or shows the completed group for the session.
+
 Two kinds of work appear here automatically:
 
 - When the current week has a GM, that GM gets **Update social points** and
@@ -160,6 +188,10 @@ The **E-board meeting agenda** area drafts the next meeting from the board:
 - A week whose meeting day is a USC holiday has no meeting, so its items roll
   into the meeting before it. For example, Thanksgiving week items appear on the
   previous week's agenda.
+- Every agenda row has an **Open** link back to the task on the board.
+- **Copy as Markdown** puts the agenda on the clipboard as a plain checklist for
+  a doc or message. **Print** opens the browser's print dialog with the board
+  chrome hidden.
 
 ## Undo, deleted items, and reset
 
@@ -167,8 +199,12 @@ The toolbar above the board has three recovery tools:
 
 - **Undo / Redo** — step through the current session's changes. Use the buttons
   or `⌘Z` / `Ctrl+Z` to undo and `⇧⌘Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`) to redo.
-  Shortcuts pause while you are typing in a form field. History is kept in
-  memory, so it clears on reload or when another tab changes the board.
+  The button tooltip names the change it will reverse. Shortcuts pause while you
+  are typing in a form field. History is kept in memory, so it clears on reload
+  or when another tab changes the board.
+- A short **toast** appears after deleting a task, clearing completed to-dos,
+  resetting the board, or changing the meeting time. Its **Undo** button reverses
+  that one change.
 - **Recently deleted** — deleting an event, to-do, or GM task moves it to this
   list, newest first. Restore puts it back in its section together with its
   subtasks and ordering rules. The list keeps the 25 most recent deletions and
@@ -186,6 +222,30 @@ The board is a single shared document. Every change is written to the server's
 the page can open before the server responds. If the server is briefly
 unavailable, edits stay in the browser and are retried automatically.
 
+The **Saving / Saved / Offline** chip in the toolbar reports the state of that
+shared copy. **Saving…** means a write is in flight, **Saved 2:31 PM** means the
+server accepted the latest change, and **Offline · retrying** means edits are
+still safe in this browser and will be sent when the server is reachable again.
+
+### Other tabs and teammates
+
+The board notices when someone else saves. While this tab is open and visible it
+checks the shared copy about every fifteen seconds, and it also checks when you
+come back to the tab.
+
+- If this tab has no changes in flight, the newer board appears on its own and a
+  short note says newer changes were loaded.
+- If you are in the middle of editing, the board is left alone. Instead, a
+  banner appears the next time you save, with **Load latest** to discard this
+  tab's changes and **Keep mine** to replace the newer shared copy with yours.
+  The **Changed elsewhere** chip stays visible until you choose.
+- Two tabs in the same browser also stay in step through the browser's local
+  storage.
+
+Neither copy is overwritten silently: the server refuses a save that was based
+on an older board, which is what turns a collision into the banner instead of
+lost work.
+
 Reset clears board content; it does not move the academic calendar forward. To
 start a new year, see
 [Starting a new academic year](maintenance.md#starting-a-new-academic-year).
@@ -194,6 +254,9 @@ start a new year, see
 
 | Action | Shortcut |
 | --- | --- |
+| Search the board | `⌘K` / `Ctrl+K` |
+| Open the selected search result | `Enter` |
+| Move through search results | `↑` / `↓` |
 | Undo | `⌘Z` / `Ctrl+Z` |
 | Redo | `⇧⌘Z` / `Ctrl+Shift+Z` or `Ctrl+Y` |
-| Close the reset panel | `Esc` |
+| Close search or the reset panel | `Esc` |

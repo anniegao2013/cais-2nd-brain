@@ -6,6 +6,13 @@ export function HistoryControls({
 }: {
   board: TaskBoardController;
 }) {
+  const undoTitle = board.canUndo
+    ? `Undo ${board.undoLabel ?? "last change"} (⌘Z / Ctrl+Z)`
+    : "Nothing to undo";
+  const redoTitle = board.canRedo
+    ? `Redo ${board.redoLabel ?? "last change"} (⌘⇧Z / Ctrl+Shift+Z)`
+    : "Nothing to redo";
+
   return (
     <div
       className="flex items-center gap-1.5"
@@ -16,9 +23,13 @@ export function HistoryControls({
         type="button"
         onClick={board.undo}
         disabled={!board.canUndo}
-        aria-label="Undo last change"
+        aria-label={
+          board.canUndo
+            ? `Undo ${board.undoLabel ?? "last change"}`
+            : "Nothing to undo"
+        }
         aria-keyshortcuts="Meta+Z Control+Z"
-        title="Undo (⌘Z / Ctrl+Z)"
+        title={undoTitle}
         className={toolbarButtonClass}
       >
         <span aria-hidden="true">↶</span>
@@ -28,9 +39,13 @@ export function HistoryControls({
         type="button"
         onClick={board.redo}
         disabled={!board.canRedo}
-        aria-label="Redo last undone change"
+        aria-label={
+          board.canRedo
+            ? `Redo ${board.redoLabel ?? "last change"}`
+            : "Nothing to redo"
+        }
         aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Control+Y"
-        title="Redo (⌘⇧Z / Ctrl+Shift+Z)"
+        title={redoTitle}
         className={toolbarButtonClass}
       >
         <span aria-hidden="true">↷</span>

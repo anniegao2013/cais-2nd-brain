@@ -30,14 +30,21 @@ export function TaskSection({
     ? overdueWeekOccurrences(board.state, currentWeekCategoryId)
     : [];
   const overdueIds = new Set(overdue.map(({ task }) => task.id));
-  const occurrences = taskOccurrences(board.state, category.id).filter(
+  const matchingOccurrences = taskOccurrences(board.state, category.id).filter(
     ({ task }) => board.matchesFilter(task) && !overdueIds.has(task.id),
   );
+  const occurrences =
+    todo || !board.hideCompleted
+      ? matchingOccurrences
+      : matchingOccurrences.filter(({ task }) => !task.done);
   // Keep each GM's rows together in the week, with the GM row first.
   const groups = groupOccurrencesByGm(board.state, occurrences);
-  const overdueOccurrences = isCurrentWeek
+  const matchingOverdue = isCurrentWeek
     ? overdue.filter(({ task }) => board.matchesFilter(task))
     : [];
+  const overdueOccurrences = board.hideCompleted
+    ? matchingOverdue.filter(({ task }) => !task.done)
+    : matchingOverdue;
   if (
     board.activeTags.length > 0 &&
     occurrences.length === 0 &&
@@ -50,6 +57,9 @@ export function TaskSection({
     occurrences.filter(({ task }) => !task.done && !task.isHoliday).length +
     overdueOccurrences.filter(({ task }) => !task.done && !task.isHoliday)
       .length;
+  const progressTasks = matchingOccurrences.filter(({ task }) => !task.isHoliday);
+  const doneCount = progressTasks.filter(({ task }) => task.done).length;
+  const totalCount = progressTasks.length;
   const dateRange = weekRangeLabel(category.id);
 
   return (
@@ -89,9 +99,17 @@ export function TaskSection({
             </span>
           )}
         </div>
-        <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
-          {remaining} open
-        </span>
+        <div className="flex shrink-0 items-baseline gap-2 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
+          {!todo && totalCount > 0 && (
+            <span
+              title={`${doneCount} of ${totalCount} tasks done in ${category.label}`}
+              className="text-zinc-500 dark:text-zinc-400"
+            >
+              {doneCount}/{totalCount} done
+            </span>
+          )}
+          <span>{remaining} open</span>
+        </div>
       </div>
 
       {overdueOccurrences.length > 0 && (
