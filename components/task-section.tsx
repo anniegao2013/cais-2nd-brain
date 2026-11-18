@@ -1,8 +1,13 @@
 import type { TaskBoardController } from "@/hooks/use-task-board";
 import { weekRangeLabel } from "@/lib/calendar";
 import { isTodoCategory, tabForCategoryId } from "@/lib/categories";
-import { overdueWeekOccurrences, taskOccurrences } from "@/lib/tasks";
+import {
+  groupOccurrencesByGm,
+  overdueWeekOccurrences,
+  taskOccurrences,
+} from "@/lib/tasks";
 import { AddTaskForm } from "./add-task-form";
+import { GmGroup } from "./gm-group";
 import { TaskRow } from "./task-row";
 import { TodoGroups } from "./todo-groups";
 
@@ -25,12 +30,21 @@ export function TaskSection({
     ? overdueWeekOccurrences(board.state, currentWeekCategoryId)
     : [];
   const overdueIds = new Set(overdue.map(({ task }) => task.id));
-  const occurrences = taskOccurrences(board.state, category.id).filter(
+  const matchingOccurrences = taskOccurrences(board.state, category.id).filter(
     ({ task }) => board.matchesFilter(task) && !overdueIds.has(task.id),
   );
-  const overdueOccurrences = isCurrentWeek
+  const occurrences =
+    todo || !board.hideCompleted
+      ? matchingOccurrences
+      : matchingOccurrences.filter(({ task }) => !task.done);
+  // Keep each GM's rows together in the week, with the GM row first.
+  const groups = groupOccurrencesByGm(board.state, occurrences);
+  const matchingOverdue = isCurrentWeek
     ? overdue.filter(({ task }) => board.matchesFilter(task))
     : [];
+  const overdueOccurrences = board.hideCompleted
+    ? matchingOverdue.filter(({ task }) => !task.done)
+    : matchingOverdue;
   if (
     board.activeTags.length > 0 &&
     occurrences.length === 0 &&
@@ -43,6 +57,9 @@ export function TaskSection({
     occurrences.filter(({ task }) => !task.done && !task.isHoliday).length +
     overdueOccurrences.filter(({ task }) => !task.done && !task.isHoliday)
       .length;
+  const progressTasks = matchingOccurrences.filter(({ task }) => !task.isHoliday);
+  const doneCount = progressTasks.filter(({ task }) => task.done).length;
+  const totalCount = progressTasks.length;
   const dateRange = weekRangeLabel(category.id);
 
   return (
@@ -50,7 +67,7 @@ export function TaskSection({
       id={`${category.id}-section`}
       aria-labelledby={`${category.id}-heading`}
       aria-current={isCurrentWeek ? "date" : undefined}
-      className="scroll-mt-6"
+      className="scroll-mt-24"
     >
       <div className="flex items-baseline justify-between gap-4">
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -82,9 +99,17 @@ export function TaskSection({
             </span>
           )}
         </div>
-        <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
-          {remaining} open
-        </span>
+        <div className="flex shrink-0 items-baseline gap-2 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
+          {!todo && totalCount > 0 && (
+            <span
+              title={`${doneCount} of ${totalCount} tasks done in ${category.label}`}
+              className="text-zinc-500 dark:text-zinc-400"
+            >
+              {doneCount}/{totalCount} done
+            </span>
+          )}
+          <span>{remaining} open</span>
+        </div>
       </div>
 
       {overdueOccurrences.length > 0 && (
@@ -123,16 +148,27 @@ export function TaskSection({
       ) : (
         occurrences.length > 0 && (
           <ul className="mt-3 flex flex-col divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-            {occurrences.map(({ task, startCategoryId, isStart }) => (
-              <TaskRow
-                key={`${task.id}:${category.id}`}
-                board={board}
-                task={task}
-                startCategoryId={startCategoryId}
-                categoryId={category.id}
-                isStart={isStart}
-              />
-            ))}
+            {groups.map((group) =>
+              group.gmId ? (
+                <GmGroup
+                  key={`gm:${group.gmId}`}
+                  board={board}
+                  group={group}
+                  categoryId={category.id}
+                />
+              ) : (
+                group.occurrences.map(({ task, startCategoryId, isStart }) => (
+                  <TaskRow
+                    key={`${task.id}:${category.id}`}
+                    board={board}
+                    task={task}
+                    startCategoryId={startCategoryId}
+                    categoryId={category.id}
+                    isStart={isStart}
+                  />
+                ))
+              ),
+            )}
           </ul>
         )
       )}

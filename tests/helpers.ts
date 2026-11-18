@@ -15,6 +15,7 @@ export function makeState(
     ...(overrides.meetingSchedule
       ? { meetingSchedule: overrides.meetingSchedule }
       : {}),
+    ...(overrides.deletedTasks ? { deletedTasks: overrides.deletedTasks } : {}),
   };
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allTasks,
   findTask,
+  groupOccurrencesByGm,
   overdueWeekOccurrences,
   spanLabel,
   spanLength,
@@ -74,6 +75,108 @@ describe("taskOccurrences", () => {
       ["backwards"],
     );
     expect(taskOccurrences(backwards, "week-2")).toEqual([]);
+  });
+});
+
+describe("groupOccurrencesByGm", () => {
+  it("keeps a GM and its tasks together in stored order", () => {
+    const state = makeState({
+      "week-2": [
+        makeTask("gm-week-2"),
+        makeTask("regular-a"),
+        makeTask("task-for-gm", { parentId: "gm-week-2" }),
+        makeTask("idea", { parentId: "gm-week-2", gmIdea: true }),
+        makeTask("regular-b"),
+      ],
+    });
+
+    const groups = groupOccurrencesByGm(
+      state,
+      taskOccurrences(state, "week-2"),
+    );
+
+    expect(groups.map((group) => group.gmId)).toEqual([
+      "gm-week-2",
+      null,
+      null,
+    ]);
+    expect(ids(groups[0].occurrences.map(({ task }) => task))).toEqual([
+      "gm-week-2",
+      "task-for-gm",
+      "idea",
+    ]);
+    expect(groups[0].gmOccurrence?.task.id).toBe("gm-week-2");
+    expect(groups[0].gmCategoryId).toBe("week-2");
+    expect(ids(groups[1].occurrences.map(({ task }) => task))).toEqual([
+      "regular-a",
+    ]);
+    expect(ids(groups[2].occurrences.map(({ task }) => task))).toEqual([
+      "regular-b",
+    ]);
+  });
+
+  it("pulls the GM row ahead of a child that was stored first", () => {
+    const state = makeState({
+      "week-2": [
+        makeTask("task-for-gm", { parentId: "gm-week-2" }),
+        makeTask("gm-week-2"),
+      ],
+    });
+
+    const groups = groupOccurrencesByGm(
+      state,
+      taskOccurrences(state, "week-2"),
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(ids(groups[0].occurrences.map(({ task }) => task))).toEqual([
+      "gm-week-2",
+      "task-for-gm",
+    ]);
+  });
+
+  it("groups an earlier prep task without the GM row", () => {
+    const state = makeState({
+      "week-1": [makeTask("prep", { parentId: "gm-week-5", leadWeeks: 4 })],
+      "week-5": [makeTask("gm-week-5")],
+    });
+
+    const groups = groupOccurrencesByGm(
+      state,
+      taskOccurrences(state, "week-1"),
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      gmId: "gm-week-5",
+      gmOccurrence: null,
+      gmCategoryId: "week-5",
+    });
+    expect(ids(groups[0].occurrences.map(({ task }) => task))).toEqual([
+      "prep",
+    ]);
+  });
+
+  it("leaves non-GM subtasks and orphaned rows as ordinary groups", () => {
+    const state = makeState({
+      "week-3": [
+        makeTask("event", { suggested: true }),
+        makeTask("subtask", { parentId: "event" }),
+        makeTask("orphan", { parentId: "missing" }),
+      ],
+    });
+
+    const groups = groupOccurrencesByGm(
+      state,
+      taskOccurrences(state, "week-3"),
+    );
+
+    expect(groups.map((group) => group.gmId)).toEqual([null, null, null]);
+    expect(ids(groups.map((group) => group.occurrences[0].task))).toEqual([
+      "event",
+      "subtask",
+      "orphan",
+    ]);
   });
 });
 

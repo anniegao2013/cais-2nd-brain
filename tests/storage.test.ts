@@ -4,7 +4,7 @@ import {
   DEFAULT_EVENTS,
   DEFAULT_STATE,
 } from "../lib/defaults";
-import { normalizeStorage } from "../lib/storage";
+import { defaultBoardState, normalizeStorage } from "../lib/storage";
 import {
   SOCIAL_FOLLOW_UPS,
   announceId,
@@ -576,5 +576,36 @@ describe("normalizeStorage", () => {
     expect(findTask(state, startPlanningId("default-22"))).toBeNull();
     expect(findTask(state, socialPollId("default-22"))).not.toBeNull();
     expect(findTask(state, announceId("default-22"))).not.toBeNull();
+  });
+});
+
+describe("defaultBoardState", () => {
+  it("returns a fresh copy of the seeded board without user changes", () => {
+    const state = defaultBoardState();
+
+    expect(state).not.toBe(DEFAULT_STATE);
+    expect(state.tasks).toEqual(DEFAULT_STATE.tasks);
+    expect(state.removedDefaults).toEqual([]);
+    expect(state.deletedTasks).toBeUndefined();
+    expect(state.meetingSchedule).toEqual({ weekday: 3, time: "19:00" });
+  });
+
+  it("does not share nested state with the saved seed", () => {
+    const first = defaultBoardState();
+    first.tasks["week-1"].push({
+      id: "extra",
+      text: "Extra",
+      done: false,
+    });
+    first.removedDefaults.push("default-1");
+    first.dependencies.push({ before: "extra", after: "default-10" });
+
+    const second = defaultBoardState();
+
+    expect(
+      second.tasks["week-1"]?.some((task) => task.id === "extra"),
+    ).toBe(false);
+    expect(second.removedDefaults).toEqual([]);
+    expect(second.dependencies).toEqual(DEFAULT_STATE.dependencies);
   });
 });

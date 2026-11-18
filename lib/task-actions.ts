@@ -7,6 +7,7 @@ import {
   sectionLabel,
 } from "./categories";
 import { weekInfoFromCategoryId, isISODate, isMonthKey } from "./calendar";
+import { MAX_DELETED_BATCHES } from "./deleted-tasks";
 import { sortState } from "./dependencies";
 import { isGmEvent } from "./gm-events";
 import { cleanNotes } from "./notes";
@@ -14,7 +15,7 @@ import { clampTaskSpan, moveBounds, shiftTaskSpan } from "./placement";
 import { syncSocialFollowUps } from "./social-polls";
 import { findTask } from "./tasks";
 import type { TagId } from "./tags";
-import type { AppState, Task, TasksByCategory } from "./types";
+import type { AppState, DeletedBatch, Task, TasksByCategory } from "./types";
 
 type TaskActionResult = { state?: AppState; error?: string };
 
@@ -24,6 +25,9 @@ export type NewTaskInput = {
   beforeId: string;
   endCategoryId: string;
   dueDate?: string;
+  // Tags to apply immediately, such as the active tag filter. New tasks are
+  // tagged when the board is filtered so they do not vanish on creation.
+  tags?: TagId[];
 };
 
 export function addTask(
@@ -37,6 +41,9 @@ export function addTask(
   // Ideas and to-dos are plain lists: ordering and spans do not apply.
   if (isGmIdeasCategory(categoryId) || isTodoCategory(categoryId)) {
     const task: Task = { id: crypto.randomUUID(), text, done: false };
+    if (input.tags && input.tags.length > 0) {
+      task.tags = [...input.tags];
+    }
     if (isTodoCategory(categoryId) && isISODate(input.dueDate)) {
       task.dueDate = input.dueDate;
     }
@@ -112,6 +119,9 @@ export function addTask(
   }
 
   const task: Task = { id: crypto.randomUUID(), text, done: false };
+  if (input.tags && input.tags.length > 0) {
+    task.tags = [...input.tags];
+  }
   if (endIndex > targetIndex) {
     task.endCategoryId = CATEGORIES[endIndex].id;
   }
@@ -312,10 +322,54 @@ export function toggleTaskDone(
   };
 }
 
+export function duplicateTask(
+  state: AppState,
+  categoryId: string,
+  taskId: string,
+): AppState | null {
+  const list = state.tasks[categoryId] ?? [];
+  const index = list.findIndex((task) => task.id === taskId);
+  if (index === -1) return null;
+
+  const original = list[index];
+  // A second GM would break the one-GM-per-week assumption, and holidays are
+  // calendar reference rows rather than editable tasks.
+  if (isGmEvent(original) || original.isHoliday) return null;
+
+  const copy: Task = {
+    id: crypto.randomUUID(),
+    text: `${original.text} (copy)`,
+    done: false,
+  };
+  if (original.tags && original.tags.length > 0) copy.tags = [...original.tags];
+  if (original.notes) copy.notes = original.notes;
+  if (original.parentId) copy.parentId = original.parentId;
+  if (original.leadWeeks !== undefined) copy.leadWeeks = original.leadWeeks;
+  if (original.endCategoryId) copy.endCategoryId = original.endCategoryId;
+  if (original.dueDate) copy.dueDate = original.dueDate;
+  if (original.suggested) copy.suggested = true;
+  if (original.gmSuggestedMonth) {
+    copy.gmSuggestedMonth = original.gmSuggestedMonth;
+  }
+
+  return {
+    ...state,
+    tasks: {
+      ...state.tasks,
+      [categoryId]: [
+        ...list.slice(0, index + 1),
+        copy,
+        ...list.slice(index + 1),
+      ],
+    },
+  };
+}
+
 export function deleteTask(
   state: AppState,
   taskId: string,
-): { state: AppState; removedIds: Set<string> } | null {
+  deletedAt: string = new Date().toISOString(),
+): { state: AppState; removedIds: Set<string>; deleted: DeletedBatch } | null {
   const task = findTask(state, taskId)?.task;
   if (!task) return null;
 
@@ -329,10 +383,25 @@ export function deleteTask(
     }
   }
 
+  const removedTasks: DeletedBatch["tasks"] = [];
   const tasks: TasksByCategory = {};
   for (const [id, list] of Object.entries(state.tasks)) {
-    tasks[id] = list.filter((candidate) => !removedIds.has(candidate.id));
+    tasks[id] = list.filter((candidate) => {
+      if (!removedIds.has(candidate.id)) return true;
+      removedTasks.push({ categoryId: id, task: candidate });
+      return false;
+    });
   }
+
+  const removedDependencies = state.dependencies.filter(
+    (edge) => removedIds.has(edge.before) || removedIds.has(edge.after),
+  );
+  const deleted: DeletedBatch = {
+    id: crypto.randomUUID(),
+    deletedAt,
+    tasks: removedTasks,
+    dependencies: removedDependencies,
+  };
 
   return {
     state: {
@@ -344,8 +413,53 @@ export function deleteTask(
       removedDefaults: [
         ...new Set([...state.removedDefaults, ...removedIds]),
       ],
+      deletedTasks: [deleted, ...(state.deletedTasks ?? [])].slice(
+        0,
+        MAX_DELETED_BATCHES,
+      ),
     },
     removedIds,
+    deleted,
+  };
+}
+
+export function clearCompletedTasks(
+  state: AppState,
+  categoryId: string,
+  deletedAt: string = new Date().toISOString(),
+): { state: AppState; count: number; deleted: DeletedBatch } | null {
+  const list = state.tasks[categoryId] ?? [];
+  const completed = list.filter((task) => task.done && !task.isHoliday);
+  if (completed.length === 0) return null;
+
+  const removedIds = new Set(completed.map((task) => task.id));
+  const deleted: DeletedBatch = {
+    id: crypto.randomUUID(),
+    deletedAt,
+    tasks: completed.map((task) => ({ categoryId, task })),
+    dependencies: state.dependencies.filter(
+      (edge) => removedIds.has(edge.before) || removedIds.has(edge.after),
+    ),
+  };
+
+  return {
+    state: {
+      ...state,
+      tasks: {
+        ...state.tasks,
+        [categoryId]: list.filter((task) => !removedIds.has(task.id)),
+      },
+      dependencies: state.dependencies.filter(
+        (edge) => !removedIds.has(edge.before) && !removedIds.has(edge.after),
+      ),
+      removedDefaults: [...new Set([...state.removedDefaults, ...removedIds])],
+      deletedTasks: [deleted, ...(state.deletedTasks ?? [])].slice(
+        0,
+        MAX_DELETED_BATCHES,
+      ),
+    },
+    count: completed.length,
+    deleted,
   };
 }
 

@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addSubtask,
   addTask,
+  clearCompletedTasks,
   deleteTask,
+  duplicateTask,
   moveTask,
   renameTask,
   toggleTaskDone,
@@ -79,6 +81,32 @@ describe("addTask", () => {
       { before: "new-task", after: "b" },
     ]);
     expect(ids(result.state?.tasks["week-1"])).toEqual(["a", "new-task"]);
+  });
+
+  it("applies active filter tags to new tasks", () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("new-task");
+    const state = makeState({ summer: [] });
+
+    const scheduled = addTask(state, "summer", {
+      text: "Tagged task",
+      afterId: "",
+      beforeId: "",
+      endCategoryId: "",
+      tags: ["recruitment", "gm"],
+    });
+    const idea = addTask(state, "gm-ideas", {
+      text: "Tagged idea",
+      afterId: "",
+      beforeId: "",
+      endCategoryId: "",
+      tags: ["recruitment"],
+    });
+
+    expect(scheduled.state?.tasks.summer[0].tags).toEqual([
+      "recruitment",
+      "gm",
+    ]);
+    expect(idea.state?.tasks["gm-ideas"][0].tags).toEqual(["recruitment"]);
   });
 
   it("ignores blank titles", () => {
@@ -567,5 +595,90 @@ describe("moveTask", () => {
     });
 
     expect(moveTask(state, "week-3", "sub", "week-6")).toBeNull();
+  });
+});
+
+describe("duplicateTask", () => {
+  it("inserts a copy after the original and keeps its details", () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("copy-id");
+    const original = makeTask("original", {
+      text: "Send the deck",
+      tags: ["projects", "gm"],
+      notes: "Include the budget",
+      endCategoryId: "week-5",
+      dueDate: "2026-11-20",
+      done: true,
+    });
+    const state = makeState({ "week-3": [original, makeTask("after")] });
+
+    const next = duplicateTask(state, "week-3", "original");
+    const list = next?.tasks["week-3"] ?? [];
+
+    expect(ids(list)).toEqual(["original", "copy-id", "after"]);
+    expect(list[1]).toMatchObject({
+      text: "Send the deck (copy)",
+      done: false,
+      notes: "Include the budget",
+      endCategoryId: "week-5",
+      dueDate: "2026-11-20",
+      tags: ["projects", "gm"],
+    });
+    expect(list[1].tags).not.toBe(original.tags);
+    expect(state.tasks["week-3"]).toEqual([original, makeTask("after")]);
+  });
+
+  it("keeps a subtask attached to its parent", () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("copy-id");
+    const state = makeState({
+      "week-2": [
+        makeTask("sub", { parentId: "parent", leadWeeks: 2 }),
+        makeTask("parent"),
+      ],
+    });
+
+    const next = duplicateTask(state, "week-2", "sub");
+    expect(next?.tasks["week-2"][1]).toMatchObject({
+      id: "copy-id",
+      parentId: "parent",
+      leadWeeks: 2,
+    });
+  });
+
+  it("refuses to duplicate GM events and holidays", () => {
+    const state = makeState({
+      "week-2": [
+        makeTask("gm-week-2", { text: "GM 2" }),
+        makeTask("holiday", { isHoliday: true }),
+      ],
+    });
+
+    expect(duplicateTask(state, "week-2", "gm-week-2")).toBeNull();
+    expect(duplicateTask(state, "week-2", "holiday")).toBeNull();
+  });
+});
+
+describe("clearCompletedTasks", () => {
+  it("removes completed to-dos into one restorable batch", () => {
+    const done = makeTask("done", { done: true });
+    const doneTwo = makeTask("done-two", { done: true });
+    const open = makeTask("open");
+    const state = makeState({ todos: [done, open, doneTwo] });
+
+    const result = clearCompletedTasks(state, "todos", "2026-11-18T00:00:00Z");
+
+    expect(result?.count).toBe(2);
+    expect(ids(result?.state.tasks.todos)).toEqual(["open"]);
+    expect(result?.state.deletedTasks).toHaveLength(1);
+    expect(result?.state.deletedTasks?.[0].tasks.map((entry) => entry.task.id)).toEqual([
+      "done",
+      "done-two",
+    ]);
+    expect(result?.state.removedDefaults).toEqual(["done", "done-two"]);
+    expect(state.tasks.todos).toHaveLength(3);
+  });
+
+  it("returns null when nothing is completed", () => {
+    const state = makeState({ todos: [makeTask("open")] });
+    expect(clearCompletedTasks(state, "todos")).toBeNull();
   });
 });
